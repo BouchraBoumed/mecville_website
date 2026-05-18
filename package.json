@@ -1,0 +1,15 @@
+{
+  "name": "mecville",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n wp,react -c blue,green \"npx wp-now start\" \"npm run dev --prefix front-end\"",
+    "dev:wp": "npx wp-now start",
+    "dev:react": "npm run dev --prefix front-end",
+    "stop": "npx wp-now stop"
+  },
+  "devDependencies": {
+    "@wp-now/wp-now": "^0.1.74",
+    "concurrently": "^8.2.2"
+  }
+}
