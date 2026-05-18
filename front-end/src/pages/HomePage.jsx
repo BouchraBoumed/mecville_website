@@ -49,25 +49,6 @@ export default function HomePage() {
           )}
         </div>
       </section>
-
-      <section className="section promotions-section">
-        <div className="container">
-          <div className="promo-banner">
-            <div className="promo-content">
-              <h3 className="promo-title">Free Shipping Over $100</h3>
-              <p className="promo-text">On all orders within Canada. Tracked and insured.</p>
-            </div>
-            <div className="promo-content">
-              <h3 className="promo-title">Authenticity Guaranteed</h3>
-              <p className="promo-text">Every card inspected and verified. 100% authentic.</p>
-            </div>
-            <div className="promo-content">
-              <h3 className="promo-title">Secure Checkout</h3>
-              <p className="promo-text">Pay with Stripe or PayPal. Your info stays safe.</p>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
   );
 }
