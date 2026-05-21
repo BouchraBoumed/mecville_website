@@ -104,8 +104,8 @@ p { margin-bottom: 1rem; color: var(--color-text-secondary); }
 .header-left { display: flex; align-items: center; gap: 16px; }
 .header-right { display: flex; align-items: center; gap: 12px; }
 .site-branding { display: flex; align-items: center; gap: 12px; }
-.brand-logo { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
-.brand-logo svg { width: 32px; height: 32px; border-radius: 10px; background: rgba(255,255,255,0.08); padding: 6px; }
+.brand-logo { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; color: inherit; }
+.brand-logo svg { width: 32px; height: 32px; border-radius: 10px; background: rgba(255,255,255,0.08); padding: 4px; }
 .site-branding .site-title { font-size: 1.25rem; font-weight: 800; color: var(--color-text); letter-spacing: -0.02em; }
 
 .header-actions { display: flex; align-items: center; gap: 18px; justify-content: flex-end; width: 100%; }

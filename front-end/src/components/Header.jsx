@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { getCart } from '../api/woocommerce';
+import logo from "../assets/logo.webp";
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -18,10 +19,9 @@ export default function Header() {
       <div className="header-container">
         <div className="site-branding">
           <Link to="/" className="brand-logo">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M8 12l2 2 4-4" />
-            </svg>
+            <img src={logo} alt="Mecville Logo" width="65" height="auto"/>
+            <circle cx="12" cy="12" r="10" />
+            <path d="M8 12l2 2 4-4" />
             <span className="site-title">Mecville</span>
           </Link>
         </div>
