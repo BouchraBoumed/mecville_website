@@ -1,18 +1,42 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { getCart } from '../api/woocommerce';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import logo from "../assets/logo.webp";
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const location = useLocation();
+  const { user } = useAuth();
 
   useEffect(() => { setMenuOpen(false); }, [location]);
 
   useEffect(() => {
-    getCart().then(cart => setCartCount(cart?.items?.length || 0)).catch(() => {});
-  }, []);
+    if (!user) { setCartCount(0); return; }
+
+    const fetchCart = async () => {
+      const { data } = await supabase
+        .from('cart_items')
+        .select('quantity')
+        .eq('user_id', user.id);
+      const count = data?.reduce((sum, i) => sum + i.quantity, 0) || 0;
+      setCartCount(count);
+    };
+
+    fetchCart();
+
+    // Subscribe to cart changes
+    const channel = supabase
+      .channel('cart-changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'cart_items', filter: `user_id=eq.${user.id}` },
+        fetchCart
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
 
   return (
     <header className="site-header">

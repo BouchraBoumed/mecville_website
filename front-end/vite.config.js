@@ -6,6 +6,12 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // Proxy /api to Express backend
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      // Proxy /wp-json to WordPress (for backward compatibility during migration)
       '/wp-json': {
         target: 'http://localhost:8881',
         changeOrigin: true,

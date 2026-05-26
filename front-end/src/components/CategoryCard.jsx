@@ -1,11 +1,10 @@
 import { Link } from 'react-router-dom';
 
 export default function CategoryCard({ category }) {
-  const img = category.image?.src || '';
-  const slug = category.slug;
+  const img = category.image_url || '';
 
   return (
-    <Link to={`/shop?category=${slug}`} className="category-card">
+    <Link to={`/shop?category=${category.slug}`} className="category-card">
       <div className="category-image">
         {img ? (
           <img src={img} alt={category.name} loading="lazy" />
@@ -17,7 +16,6 @@ export default function CategoryCard({ category }) {
       </div>
       <div className="category-info">
         <h3 className="category-name">{category.name}</h3>
-        <span className="category-count">{category.count} Products</span>
       </div>
     </Link>
   );

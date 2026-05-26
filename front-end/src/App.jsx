@@ -7,6 +7,7 @@ import ProductPage from './pages/ProductPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import AccountPage from './pages/AccountPage';
+import AdminPage from './pages/AdminPage';
 import GalleryPage from './pages/GalleryPage';
 import ContactPage from './pages/ContactPage';
 import LegalPage from './pages/LegalPage';
@@ -26,7 +27,9 @@ export default function App() {
           <Route path="/product/:slug" element={<ProductPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/order/confirm" element={<CheckoutPage />} />
           <Route path="/account" element={<AccountPage />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="/privacy" element={<LegalPage page="privacy" />} />
           <Route path="/terms" element={<LegalPage page="terms" />} />
           <Route path="/shipping" element={<LegalPage page="shipping" />} />

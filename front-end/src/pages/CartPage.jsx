@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getCart, updateCartItem, removeCartItem } from '../api/woocommerce';
+import { getCart, updateCartItem, removeCartItem } from '../api/data';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CartPage() {
+  const { user } = useAuth();
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) { setLoading(false); return; }
     getCart().then(c => { setCart(c); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+  }, [user]);
 
   async function handleQtyChange(key, qty) {
     try {
@@ -25,6 +28,20 @@ export default function CartPage() {
   }
 
   if (loading) return <main className="content-area"><div className="container"><p className="loading">Loading cart...</p></div></main>;
+
+  if (!user) {
+    return (
+      <main className="content-area">
+        <div className="container">
+          <div className="cart-empty">
+            <h2>Log in to view your cart</h2>
+            <p>Please create an account or sign in to add items to your cart.</p>
+            <Link to="/account" className="btn btn-accent">My Account</Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   const isEmpty = !cart || !cart.items || cart.items.length === 0;
 
@@ -60,18 +77,18 @@ export default function CartPage() {
                   {cart.items.map(item => (
                     <tr key={item.key}>
                       <td className="product-thumbnail">
-                        <img src={item.images?.[0]?.src || item.image || ''} alt={item.name} width="64" />
+                        <img src={item.image || ''} alt={item.name} width="64" />
                       </td>
                       <td className="product-name" data-title="Product">
                         <Link to={`/product/${item.slug}`}>{item.name}</Link>
                       </td>
-                      <td className="product-price" data-title="Price">${(item.prices?.price / 100).toFixed(2)}</td>
+                      <td className="product-price" data-title="Price">${item.price.toFixed(2)}</td>
                       <td className="product-quantity" data-title="Quantity">
-                        <input type="number" className="qty" value={item.quantity} min="1" max="99" onChange={e => handleQtyChange(item.key, parseInt(e.target.value) || 1)} style={{ width: 60 }} />
+                        <input type="number" className="qty" value={item.quantity} min="1" max={Math.min(99, item.stock)} onChange={e => handleQtyChange(parseInt(item.key), parseInt(e.target.value) || 1)} style={{ width: 60 }} />
                       </td>
-                      <td className="product-subtotal" data-title="Subtotal">${(item.totals?.line_total / 100).toFixed(2)}</td>
+                      <td className="product-subtotal" data-title="Subtotal">${(item.price * item.quantity).toFixed(2)}</td>
                       <td className="product-remove">
-                        <button className="remove" onClick={() => handleRemove(item.key)}>&times;</button>
+                        <button className="remove" onClick={() => handleRemove(parseInt(item.key))}>&times;</button>
                       </td>
                     </tr>
                   ))}
@@ -84,9 +101,9 @@ export default function CartPage() {
                 <h2>Cart Totals</h2>
                 <table>
                   <tbody>
-                    <tr><th>Subtotal</th><td>${(cart.totals?.total_items / 100).toFixed(2)}</td></tr>
+                    <tr><th>Subtotal</th><td>${(cart.items.reduce((s, i) => s + i.price * i.quantity, 0)).toFixed(2)}</td></tr>
                     <tr><th>Shipping</th><td>Calculated at checkout</td></tr>
-                    <tr className="order-total"><th>Total</th><td>${(cart.totals?.total_price / 100).toFixed(2)}</td></tr>
+                    <tr className="order-total"><th>Total</th><td>${(cart.items.reduce((s, i) => s + i.price * i.quantity, 0)).toFixed(2)}</td></tr>
                   </tbody>
                 </table>
                 <div className="wc-proceed-to-checkout">

@@ -1,0 +1,125 @@
+import { Router } from 'express';
+import { supabase } from '../config/supabase.js';
+import { constructWebhookEvent } from '../services/stripe.js';
+
+const router = Router();
+
+// Stripe webhook — raw body set by express.raw() in index.js
+router.post('/stripe', async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+
+  try {
+    const event = await constructWebhookEvent(req.body, sig);
+
+    switch (event.type) {
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object;
+        await handlePaymentSuccess(paymentIntent);
+        break;
+      }
+      case 'payment_intent.payment_failed': {
+        const paymentIntent = event.data.object;
+        await handlePaymentFailed(paymentIntent);
+        break;
+      }
+    }
+
+    res.json({ received: true });
+  } catch (err) {
+    console.error('Stripe webhook error:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// PayPal webhook — uses regular JSON body parser
+router.post('/paypal', async (req, res) => {
+  try {
+    const { verifyWebhook } = await import('../services/paypal.js');
+    const verified = await verifyWebhook(req.headers, req.body);
+
+    if (!verified) {
+      return res.status(400).json({ error: 'Invalid webhook signature' });
+    }
+
+    const event = req.body;
+
+    switch (event.event_type) {
+      case 'PAYMENT.CAPTURE.COMPLETED': {
+        const capture = event.resource;
+        await handlePayPalCaptureCompleted(capture);
+        break;
+      }
+      case 'PAYMENT.CAPTURE.DENIED':
+      case 'PAYMENT.CAPTURE.REFUNDED': {
+        const capture = event.resource;
+        await handlePayPalCaptureFailed(capture);
+        break;
+      }
+    }
+
+    res.json({ received: true });
+  } catch (err) {
+    console.error('PayPal webhook error:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+async function handlePaymentSuccess(paymentIntent) {
+  const paymentId = paymentIntent.id;
+  const orderId = paymentIntent.metadata?.order_id;
+
+  if (!orderId) return;
+
+  await supabase
+    .from('orders')
+    .update({
+      payment_status: 'paid',
+      status: 'processing',
+    })
+    .eq('id', orderId)
+    .eq('payment_id', paymentId);
+}
+
+async function handlePaymentFailed(paymentIntent) {
+  const paymentId = paymentIntent.id;
+
+  await supabase
+    .from('orders')
+    .update({
+      payment_status: 'failed',
+    })
+    .eq('payment_id', paymentId);
+}
+
+async function handlePayPalCaptureCompleted(capture) {
+  const paypalPaymentId = capture.id;
+
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('payment_id', paypalPaymentId)
+    .single();
+
+  if (order) return; // Already processed via capture endpoint
+
+  // If not found by payment_id, try custom_id
+  if (capture.custom_id) {
+    await supabase
+      .from('orders')
+      .update({
+        payment_status: 'paid',
+        status: 'processing',
+        payment_id: paypalPaymentId,
+      })
+      .eq('id', capture.custom_id);
+  }
+}
+
+async function handlePayPalCaptureFailed(capture) {
+  await supabase
+    .from('orders')
+    .update({ payment_status: 'refunded' })
+    .eq('payment_id', capture.id);
+}
+
+export default router;

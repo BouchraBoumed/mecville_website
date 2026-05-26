@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n wp,react -c blue,green \"npx wp-now start\" \"npm run dev --prefix front-end\"",
+    "dev": "concurrently -n wp,api,react -c blue,green,yellow \"npx wp-now start\" \"npm run dev --prefix back-end\" \"npm run dev --prefix front-end\"",
+    "dev:backend": "npm run dev --prefix back-end",
+    "dev:frontend": "npm run dev --prefix front-end",
     "dev:wp": "npx wp-now start",
-    "dev:react": "npm run dev --prefix front-end",
+    "build": "npm run build --prefix front-end",
     "stop": "npx wp-now stop"
   },
   "devDependencies": {

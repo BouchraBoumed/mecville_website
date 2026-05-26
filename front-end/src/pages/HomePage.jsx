@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import HeroSection from '../components/HeroSection';
 import ProductCard from '../components/ProductCard';
 import CategoryCard from '../components/CategoryCard';
-import { getFeaturedProducts, getCategories } from '../api/woocommerce';
+import { getFeaturedProducts, getCategories } from '../api/data';
 
 export default function HomePage() {
   const [products, setProducts] = useState([]);
@@ -28,7 +28,7 @@ export default function HomePage() {
               {products.map(p => <ProductCard key={p.id} product={p} />)}
             </div>
           ) : (
-            <p className="no-products">No featured products yet. Add products in WordPress admin and mark them as featured.</p>
+            <p className="no-products">No featured products yet.</p>
           )}
         </div>
       </section>
@@ -45,7 +45,7 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <p className="no-categories">No categories yet. Create them in WordPress admin.</p>
+            <p className="no-categories">No categories yet.</p>
           )}
         </div>
       </section>

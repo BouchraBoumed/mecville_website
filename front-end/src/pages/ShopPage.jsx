@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
-import { getProducts, getCategories } from '../api/woocommerce';
+import { getProducts, getCategories } from '../api/data';
 
 export default function ShopPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState({ data: [], total: 0 });
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -19,10 +19,9 @@ export default function ShopPage() {
 
   useEffect(() => {
     setLoading(true);
-    const catId = categories.find(c => c.slug === category)?.id;
-    getProducts({ page, category: catId, search })
+    getProducts({ page, category, search })
       .then(setProducts)
-      .catch(() => setProducts([]))
+      .catch(() => setProducts({ data: [], total: 0 }))
       .finally(() => setLoading(false));
   }, [category, search, page]);
 
@@ -48,7 +47,7 @@ export default function ShopPage() {
                       href={`/shop?category=${c.slug}`}
                       className={category === c.slug ? 'active' : ''}
                     >
-                      {c.name} ({c.count})
+                      {c.name}
                     </a>
                   </li>
                 ))}
@@ -58,14 +57,14 @@ export default function ShopPage() {
 
           <div className="shop-content">
             <div className="shop-toolbar">
-              <span className="woocommerce-result-count">{products.length} products</span>
+              <span className="woocommerce-result-count">{products.total} products</span>
             </div>
 
             {loading ? (
               <div className="loading">Loading...</div>
-            ) : products.length > 0 ? (
+            ) : products.data.length > 0 ? (
               <div className="products-grid">
-                {products.map(p => <ProductCard key={p.id} product={p} />)}
+                {products.data.map(p => <ProductCard key={p.id} product={p} />)}
               </div>
             ) : (
               <p className="no-products">No products found.</p>
