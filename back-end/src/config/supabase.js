@@ -6,8 +6,8 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment');
-  process.exit(1);
+  console.warn('⚠  Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env');
+  console.warn('   Backend will start but Supabase features will fail at runtime.');
 }
 
 // Admin client with service_role key — bypasses RLS for server operations

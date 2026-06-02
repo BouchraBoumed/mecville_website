@@ -7,7 +7,7 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "migrate": "node src/utils/migrate.js",
-    "seed": "node src/utils/seed.js"
+    "migrate:wp": "node src/utils/migrate.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

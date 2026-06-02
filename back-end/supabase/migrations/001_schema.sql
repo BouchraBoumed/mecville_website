@@ -2,6 +2,31 @@
 -- Mecville E-Commerce Database Schema
 -- PostgreSQL for Supabase
 -- =============================================================
+-- AFTER RUNNING THIS SQL, ALSO CREATE THE STORAGE BUCKET:
+-- 1. Go to Supabase Dashboard → Storage → New bucket
+-- 2. Name: "product-images", Public bucket: ON, Allowed MIME types: image/png, image/jpeg, image/webp
+-- OR run this SQL in the SQL editor:
+--   insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+--   values ('product-images', 'product-images', true, 52428800, array['image/png', 'image/jpeg', 'image/webp']);
+-- 3. Then add Storage RLS policies:
+--   -- Public read
+--   create policy "Public can view product images"
+--     on storage.objects for select
+--     using (bucket_id = 'product-images');
+--   -- Admin insert/update
+--   create policy "Admins can upload product images"
+--     on storage.objects for insert
+--     with check (
+--       bucket_id = 'product-images'
+--       and exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+--     );
+--   create policy "Admins can delete product images"
+--     on storage.objects for delete
+--     using (
+--       bucket_id = 'product-images'
+--       and exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+--     );
+-- =============================================================
 
 -- 0. Extensions
 create extension if not exists "pgcrypto";
