@@ -1,7 +1,10 @@
 import { useState } from 'react';
+import Seo from '../components/Seo';
 import { submitContactForm } from '../api/backend';
+import { useToast } from '../components/Toast';
 
 export default function ContactPage() {
+  const { addToast } = useToast();
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
@@ -10,7 +13,6 @@ export default function ContactPage() {
     e.preventDefault();
     setSending(true);
     setError('');
-
     const form = e.target;
     const data = {
       name: form.name.value,
@@ -18,10 +20,10 @@ export default function ContactPage() {
       subject: form.subject?.value || '',
       message: form.message.value,
     };
-
     try {
       await submitContactForm(data);
       setSent(true);
+      addToast("Message sent! We'll get back to you within 24-48 hours.", 'success');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -32,6 +34,7 @@ export default function ContactPage() {
   if (sent) {
     return (
       <main className="content-area">
+        <Seo title="Message Sent" />
         <div className="container">
           <section className="page-intro">
             <h1>Message Sent!</h1>
@@ -44,6 +47,7 @@ export default function ContactPage() {
 
   return (
     <main className="content-area">
+      <Seo title="Contact Us" description="Need help with an order or product question? Contact Mecville - Montreal's premium Pokemon TCG store." />
       <div className="container">
         <section className="page-intro">
           <h1>Contact Us</h1>
@@ -60,25 +64,25 @@ export default function ContactPage() {
           </div>
           <div className="contact-form">
             <h2>Send a message</h2>
-            {error && <div style={{ background: '#442222', color: '#ff6666', padding: 12, borderRadius: 4, marginBottom: 16 }}>{error}</div>}
-            <form onSubmit={handleSubmit}>
-              <label>
+            {error && <div className="alert alert-error">{error}</div>}
+            <form onSubmit={handleSubmit} noValidate>
+              <label htmlFor="contact-name">
                 Name
-                <input type="text" name="name" placeholder="Your name" required />
+                <input id="contact-name" type="text" name="name" placeholder="Your name" required />
               </label>
-              <label>
+              <label htmlFor="contact-email">
                 Email
-                <input type="email" name="email" placeholder="Your email" required />
+                <input id="contact-email" type="email" name="email" placeholder="Your email" required />
               </label>
-              <label>
+              <label htmlFor="contact-subject">
                 Subject
-                <input type="text" name="subject" placeholder="Subject (optional)" />
+                <input id="contact-subject" type="text" name="subject" placeholder="Subject (optional)" />
               </label>
-              <label>
+              <label htmlFor="contact-message">
                 Message
-                <textarea name="message" placeholder="How can we help?" required />
+                <textarea id="contact-message" name="message" placeholder="How can we help?" required />
               </label>
-              <button type="submit" className="btn btn-primary" disabled={sending}>
+              <button type="submit" className="btn btn-accent" disabled={sending}>
                 {sending ? 'Sending...' : 'Send Message'}
               </button>
             </form>

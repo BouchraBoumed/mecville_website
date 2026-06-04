@@ -2,21 +2,25 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  getAdminStats,
-  getAdminOrders,
-  updateOrderStatus,
-  getAdminProducts,
-  updateProduct,
-  deleteProduct,
-  getAdminCustomers,
-  getAdminMessages,
-  markMessageRead,
-  getAdminReviews,
-  updateReview,
+  getAdminStats, getAdminOrders, updateOrderStatus,
+  getAdminProducts, updateProduct, deleteProduct,
+  getAdminCustomers, getAdminMessages, markMessageRead,
+  getAdminReviews, updateReview,
 } from '../api/backend';
+import { useToast } from '../components/Toast';
+
+const NAV_ITEMS = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'orders', label: 'Orders' },
+  { key: 'products', label: 'Products' },
+  { key: 'customers', label: 'Customers' },
+  { key: 'messages', label: 'Messages' },
+  { key: 'reviews', label: 'Reviews' },
+];
 
 export default function AdminPage() {
-  const { user, profile, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const { addToast } = useToast();
   const [tab, setTab] = useState('dashboard');
   const [stats, setStats] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -73,6 +77,46 @@ export default function AdminPage() {
     setLoading(false);
   }
 
+  async function handleUpdateOrderStatus(id, status) {
+    try {
+      await updateOrderStatus(id, { status });
+      addToast(`Order updated to ${status}`, 'success');
+      fetchOrders();
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  }
+
+  async function handleToggleProductActive(p, active) {
+    try {
+      await updateProduct(p.id, { active });
+      addToast(`Product ${active ? 'activated' : 'deactivated'}`, 'success');
+      fetchProducts();
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  }
+
+  async function handleToggleReview(r, active) {
+    try {
+      await updateReview(r.id, active);
+      addToast(`Review ${active ? 'approved' : 'rejected'}`, 'success');
+      fetchReviews();
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  }
+
+  async function handleMarkRead(id) {
+    try {
+      await markMessageRead(id);
+      addToast('Message marked as read', 'success');
+      fetchMessages();
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  }
+
   if (!user || !isAdmin) {
     return (
       <main className="content-area"><div className="container">
@@ -85,40 +129,28 @@ export default function AdminPage() {
     );
   }
 
-  const navItems = [
-    { key: 'dashboard', label: 'Dashboard' },
-    { key: 'orders', label: 'Orders' },
-    { key: 'products', label: 'Products' },
-    { key: 'customers', label: 'Customers' },
-    { key: 'messages', label: 'Messages' },
-    { key: 'reviews', label: 'Reviews' },
-  ];
-
   return (
     <main className="content-area">
       <div className="container">
         <h1 className="page-title">Admin Dashboard</h1>
-        {error && <div style={{ background: '#442222', color: '#ff6666', padding: 12, borderRadius: 4, marginBottom: 16 }}>{error}</div>}
+        {error && <div className="alert alert-error">{error}</div>}
 
         <div className="shop-layout">
           <aside className="shop-sidebar">
             <div className="widget">
               <h3 className="widget-title">Navigation</h3>
-              <ul>
-                {navItems.map(item => (
-                  <li key={item.key}>
-                    <a
-                      href="#"
-                      onClick={e => { e.preventDefault(); setTab(item.key); }}
-                      className={tab === item.key ? 'active' : ''}
-                      style={{ display: 'block', padding: '8px 0', color: tab === item.key ? '#d4a84b' : '#ccc' }}
-                    >
-                      {item.label}
-                    </a>
-                  </li>
+              <nav className="admin-nav" aria-label="Admin sections">
+                {NAV_ITEMS.map(item => (
+                  <button
+                    key={item.key}
+                    className={tab === item.key ? 'active' : ''}
+                    onClick={() => setTab(item.key)}
+                  >
+                    {item.label}
+                  </button>
                 ))}
-                <li><Link to="/account" style={{ display: 'block', padding: '8px 0', color: '#ff6666' }}>← Back to Account</Link></li>
-              </ul>
+              </nav>
+              <Link to="/account" style={{ display: 'block', padding: '8px 0', color: 'var(--color-danger)', marginTop: 12, fontSize: 14 }}>Back to Account</Link>
             </div>
           </aside>
 
@@ -127,7 +159,7 @@ export default function AdminPage() {
 
             {tab === 'dashboard' && stats && (
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
+                <div className="admin-stats-grid">
                   {[
                     { label: 'Total Products', value: stats.totalProducts },
                     { label: 'Total Orders', value: stats.totalOrders },
@@ -136,9 +168,9 @@ export default function AdminPage() {
                     { label: 'Unread Messages', value: stats.unreadMessages },
                     { label: 'Low Stock Items', value: stats.lowStock?.length || 0 },
                   ].map(stat => (
-                    <div key={stat.label} style={{ background: '#1e1e32', padding: 20, borderRadius: 8, textAlign: 'center' }}>
-                      <div style={{ fontSize: 28, fontWeight: 'bold', color: '#d4a84b' }}>{stat.value}</div>
-                      <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>{stat.label}</div>
+                    <div key={stat.label} className="stat-card">
+                      <div className="stat-value">{stat.value}</div>
+                      <div className="stat-label">{stat.label}</div>
                     </div>
                   ))}
                 </div>
@@ -151,10 +183,10 @@ export default function AdminPage() {
                       <tbody>
                         {stats.lowStock.map(p => (
                           <tr key={p.id}>
-                            <td>{p.name}</td>
-                            <td>{p.sku || '-'}</td>
-                            <td style={{ color: p.stock <= 0 ? '#ff6666' : '#d4a84b', fontWeight: 'bold' }}>{p.stock}</td>
-                            <td>{p.stock_alert}</td>
+                            <td data-title="Product">{p.name}</td>
+                            <td data-title="SKU">{p.sku || '-'}</td>
+                            <td data-title="Stock" style={{ color: p.stock <= 0 ? 'var(--color-danger)' : 'var(--color-accent)', fontWeight: 'bold' }}>{p.stock}</td>
+                            <td data-title="Alert At">{p.stock_alert}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -170,11 +202,11 @@ export default function AdminPage() {
                       <tbody>
                         {stats.recentOrders.map(o => (
                           <tr key={o.id}>
-                            <td>{o.order_number}</td>
-                            <td>{o.email}</td>
-                            <td>${Number(o.total).toFixed(2)}</td>
-                            <td><span style={{ color: o.status === 'delivered' ? '#66ff66' : o.status === 'cancelled' ? '#ff6666' : '#d4a84b' }}>{o.status}</span></td>
-                            <td>{new Date(o.created_at).toLocaleDateString()}</td>
+                            <td data-title="Order #">{o.order_number}</td>
+                            <td data-title="Email">{o.email}</td>
+                            <td data-title="Total">${Number(o.total).toFixed(2)}</td>
+                            <td data-title="Status"><span style={{ color: o.status === 'delivered' ? 'var(--color-success)' : o.status === 'cancelled' ? 'var(--color-danger)' : 'var(--color-accent)' }}>{o.status}</span></td>
+                            <td data-title="Date">{new Date(o.created_at).toLocaleDateString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -190,19 +222,16 @@ export default function AdminPage() {
                 <tbody>
                   {orders.map(o => (
                     <tr key={o.id}>
-                      <td>{o.order_number}</td>
-                      <td>{o.email}</td>
-                      <td>${Number(o.total).toFixed(2)}</td>
-                      <td>{o.status}</td>
-                      <td>{o.payment_status}</td>
-                      <td>
+                      <td data-title="Order #">{o.order_number}</td>
+                      <td data-title="Email">{o.email}</td>
+                      <td data-title="Total">${Number(o.total).toFixed(2)}</td>
+                      <td data-title="Status">{o.status}</td>
+                      <td data-title="Payment">{o.payment_status}</td>
+                      <td data-title="Action">
                         <select
                           value={o.status}
-                          onChange={async e => {
-                            await updateOrderStatus(o.id, { status: e.target.value });
-                            fetchOrders();
-                          }}
-                          style={{ padding: 4, background: '#0f0f23', color: '#fff', border: '1px solid #333', borderRadius: 4 }}
+                          onChange={e => handleUpdateOrderStatus(o.id, e.target.value)}
+                          className="admin-status-select"
                         >
                           {['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'].map(s => (
                             <option key={s} value={s}>{s}</option>
@@ -211,6 +240,7 @@ export default function AdminPage() {
                       </td>
                     </tr>
                   ))}
+                  {orders.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32 }}>No orders found.</td></tr>}
                 </tbody>
               </table>
             )}
@@ -221,25 +251,22 @@ export default function AdminPage() {
                 <tbody>
                   {products.map(p => (
                     <tr key={p.id}>
-                      <td>{p.name}</td>
-                      <td>{p.sku || '-'}</td>
-                      <td>${Number(p.price).toFixed(2)}</td>
-                      <td style={{ color: p.stock <= p.stock_alert ? '#d4a84b' : 'inherit' }}>{p.stock}</td>
-                      <td>{p.active ? '✓' : '✗'}</td>
-                      <td>
+                      <td data-title="Name">{p.name}</td>
+                      <td data-title="SKU">{p.sku || '-'}</td>
+                      <td data-title="Price">${Number(p.price).toFixed(2)}</td>
+                      <td data-title="Stock" style={{ color: p.stock <= p.stock_alert ? 'var(--color-accent)' : 'inherit' }}>{p.stock}</td>
+                      <td data-title="Active">{p.active ? 'Yes' : 'No'}</td>
+                      <td data-title="Actions">
                         <button
-                          className="btn"
-                          style={{ padding: '4px 12px', fontSize: 12, background: p.active ? '#662222' : '#226622', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                          onClick={async () => {
-                            await updateProduct(p.id, { active: !p.active });
-                            fetchProducts();
-                          }}
+                          className={`btn btn-xs ${p.active ? 'btn-danger' : 'btn-primary'}`}
+                          onClick={() => handleToggleProductActive(p, !p.active)}
                         >
                           {p.active ? 'Deactivate' : 'Activate'}
                         </button>
                       </td>
                     </tr>
                   ))}
+                  {products.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32 }}>No products found.</td></tr>}
                 </tbody>
               </table>
             )}
@@ -250,13 +277,14 @@ export default function AdminPage() {
                 <tbody>
                   {customers.map(c => (
                     <tr key={c.id}>
-                      <td>{c.first_name || c.last_name ? `${c.first_name || ''} ${c.last_name || ''}` : '-'}</td>
-                      <td>{c.email}</td>
-                      <td>{c.order_count || 0}</td>
-                      <td>${(c.total_spent || 0).toFixed(2)}</td>
-                      <td>{new Date(c.created_at).toLocaleDateString()}</td>
+                      <td data-title="Name">{c.first_name || c.last_name ? `${c.first_name || ''} ${c.last_name || ''}`.trim() || '-' : '-'}</td>
+                      <td data-title="Email">{c.email}</td>
+                      <td data-title="Orders">{c.order_count || 0}</td>
+                      <td data-title="Total Spent">${(c.total_spent || 0).toFixed(2)}</td>
+                      <td data-title="Joined">{new Date(c.created_at).toLocaleDateString()}</td>
                     </tr>
                   ))}
+                  {customers.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32 }}>No customers found.</td></tr>}
                 </tbody>
               </table>
             )}
@@ -264,28 +292,25 @@ export default function AdminPage() {
             {tab === 'messages' && (
               <div>
                 {messages.map(m => (
-                  <div key={m.id} style={{ background: m.read ? '#1a1a2e' : '#1e1e32', padding: 16, borderRadius: 8, marginBottom: 8, border: m.read ? '1px solid #2a2a3e' : '1px solid #d4a84b' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div key={m.id} className={`admin-message-card ${!m.read ? 'unread' : ''}`}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
                       <div>
-                        <strong>{m.name}</strong> <span style={{ color: '#888' }}>&lt;{m.email}&gt;</span>
-                        {m.subject && <span style={{ marginLeft: 12, color: '#d4a84b' }}>{m.subject}</span>}
+                        <strong>{m.name}</strong> <span style={{ color: 'var(--color-text-muted)' }}>&lt;{m.email}&gt;</span>
+                        {m.subject && <span style={{ marginLeft: 12, color: 'var(--color-accent)' }}>{m.subject}</span>}
                       </div>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <small style={{ color: '#666' }}>{new Date(m.created_at).toLocaleString()}</small>
+                        <small style={{ color: 'var(--color-text-muted)' }}>{new Date(m.created_at).toLocaleString()}</small>
                         {!m.read && (
-                          <button
-                            className="btn" style={{ padding: '4px 12px', fontSize: 12, background: '#333', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                            onClick={async () => { await markMessageRead(m.id); fetchMessages(); }}
-                          >
+                          <button className="btn btn-xs btn-outline" onClick={() => handleMarkRead(m.id)}>
                             Mark Read
                           </button>
                         )}
                       </div>
                     </div>
-                    <p style={{ color: '#ccc', marginTop: 8, whiteSpace: 'pre-wrap' }}>{m.message}</p>
+                    <p style={{ color: 'var(--color-text-secondary)', marginTop: 8, whiteSpace: 'pre-wrap' }}>{m.message}</p>
                   </div>
                 ))}
-                {messages.length === 0 && <p>No messages yet.</p>}
+                {messages.length === 0 && <p className="no-results">No messages yet.</p>}
               </div>
             )}
 
@@ -295,21 +320,22 @@ export default function AdminPage() {
                 <tbody>
                   {reviews.map(r => (
                     <tr key={r.id}>
-                      <td>{r.products?.name || '-'}</td>
-                      <td>{r.profiles?.first_name || 'Anonymous'}</td>
-                      <td style={{ color: '#d4a84b' }}>{'★'.repeat(r.rating)}</td>
-                      <td style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.content || r.title || '-'}</td>
-                      <td>{r.active ? 'Approved' : 'Pending'}</td>
-                      <td>
+                      <td data-title="Product">{r.products?.name || '-'}</td>
+                      <td data-title="Author">{r.profiles?.first_name || 'Anonymous'}</td>
+                      <td data-title="Rating" style={{ color: 'var(--color-accent)' }}>{'★'.repeat(r.rating)}</td>
+                      <td data-title="Content" style={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.content || r.title || '-'}</td>
+                      <td data-title="Status">{r.active ? 'Approved' : 'Pending'}</td>
+                      <td data-title="Action">
                         <button
-                          className="btn" style={{ padding: '4px 12px', fontSize: 12, background: r.active ? '#662222' : '#226622', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                          onClick={async () => { await updateReview(r.id, !r.active); fetchReviews(); }}
+                          className={`btn btn-xs ${r.active ? 'btn-danger' : 'btn-primary'}`}
+                          onClick={() => handleToggleReview(r, !r.active)}
                         >
                           {r.active ? 'Reject' : 'Approve'}
                         </button>
                       </td>
                     </tr>
                   ))}
+                  {reviews.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32 }}>No reviews found.</td></tr>}
                 </tbody>
               </table>
             )}

@@ -14,15 +14,17 @@ export async function getCategories() {
 }
 
 // ── Products ────────────────────────────────────────────────
-export async function getProducts({ page = 1, perPage = 12, category, search } = {}) {
+export async function getProducts({ page = 1, perPage = 12, category, search, sort = 'created_at', order = 'desc' } = {}) {
   const from = (page - 1) * perPage;
   const to = from + perPage - 1;
+
+  const sortField = sort === 'price' ? 'price' : sort === 'name' ? 'name' : 'created_at';
 
   let query = supabase
     .from('products')
     .select('*, categories(name, slug)', { count: 'exact' })
     .eq('active', true)
-    .order('created_at', { ascending: false })
+    .order(sortField, { ascending: order === 'asc' })
     .range(from, to);
 
   if (category) {

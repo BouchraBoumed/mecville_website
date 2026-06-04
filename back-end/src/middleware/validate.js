@@ -52,11 +52,11 @@ export function validate(schema) {
     }
 
     if (Object.keys(errors).length > 0) {
-      throw new AppError(
+      return next(new AppError(
         'Validation failed',
         400,
         'VALIDATION_ERROR'
-      );
+      ));
     }
 
     req.validated = data;

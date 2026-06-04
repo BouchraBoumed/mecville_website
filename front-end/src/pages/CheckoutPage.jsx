@@ -1,11 +1,30 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { getCart } from '../api/data';
 import { createStripePaymentIntent, confirmStripePayment, createPayPalOrder, capturePayPalOrder } from '../api/backend';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../components/Toast';
+
+const cardStyle = {
+  style: {
+    base: {
+      color: '#e8e6e3',
+      fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontSmoothing: 'antialiased',
+      fontSize: '15px',
+      '::placeholder': { color: '#6b7280' },
+      iconColor: '#d4a84b',
+    },
+    invalid: { color: '#ef4444', iconColor: '#ef4444' },
+  },
+};
 
 export default function CheckoutPage() {
+  const stripe = useStripe();
+  const elements = useElements();
   const { user } = useAuth();
+  const { addToast } = useToast();
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -21,7 +40,7 @@ export default function CheckoutPage() {
   const returningFromPayPal = sessionStorage.getItem('paypal_order_id') && window.location.pathname === '/order/confirm';
 
   useEffect(() => {
-    if (!user || returningFromPayPal) { setLoading(false); return; }
+    if (returningFromPayPal) { setLoading(false); return; }
     getCart().then(c => { setCart(c); setLoading(false); }).catch(() => setLoading(false));
   }, [user]);
 
@@ -31,23 +50,33 @@ export default function CheckoutPage() {
 
   async function handleStripeCheckout() {
     setError('');
-
-    // Create payment intent via backend
-    const { clientSecret, orderNumber: onum } = await createStripePaymentIntent();
-    setOrderNumber(onum);
-
-    // Load Stripe Elements
-    const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-    if (!stripeKey) {
-      setError('Stripe is not configured. Set VITE_STRIPE_PUBLISHABLE_KEY in .env');
+    if (!stripe || !elements) {
+      setError('Payment system is still loading. Please try again.');
+      return;
+    }
+    const cardElement = elements.getElement(CardElement);
+    if (!cardElement) {
+      setError('Card details not available.');
       return;
     }
 
-    const stripe = window.Stripe(stripeKey);
-    const { error: stripeError } = await stripe.confirmCardPayment(clientSecret, {
+    const { clientSecret, orderNumber: onum } = await createStripePaymentIntent();
+    setOrderNumber(onum);
+
+    const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
       payment_method: {
-        card: { token: 'tok_visa' }, // Placeholder — real integration uses Elements
-        billing_details: { name: `${form.first_name} ${form.last_name}`, email: form.email },
+        card: cardElement,
+        billing_details: {
+          name: `${form.first_name} ${form.last_name}`,
+          email: form.email,
+          address: {
+            line1: form.address,
+            city: form.city,
+            state: form.province,
+            postal_code: form.postcode,
+            country: form.country,
+          },
+        },
       },
     });
 
@@ -56,23 +85,20 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Payment succeeded — confirm on backend
-    const result = await confirmStripePayment(clientSecret.split('_secret_')[0]);
-    if (result.success) {
-      setDone(true);
-    } else {
-      setError('Payment confirmation failed');
+    if (paymentIntent?.status === 'succeeded') {
+      const result = await confirmStripePayment(paymentIntent.id);
+      if (result.success) {
+        setDone(true);
+      } else {
+        setError('Payment confirmation failed. Please contact support.');
+      }
     }
   }
 
   async function handlePayPalCheckout() {
     setError('');
-
     const { paypalOrderId, approvalUrl } = await createPayPalOrder();
-
-    // Redirect to PayPal for approval
     if (approvalUrl) {
-      // Store order info for return
       sessionStorage.setItem('paypal_order_id', paypalOrderId);
       window.location.href = approvalUrl;
     } else {
@@ -80,7 +106,6 @@ export default function CheckoutPage() {
     }
   }
 
-  // Handle PayPal return — capture on mount
   useEffect(() => {
     const paypalOrderId = sessionStorage.getItem('paypal_order_id');
     if (paypalOrderId && window.location.pathname === '/order/confirm') {
@@ -123,10 +148,6 @@ export default function CheckoutPage() {
     );
   }
 
-  if (!user) {
-    return <main className="content-area"><div className="container"><div className="cart-empty"><h2>Please log in to checkout</h2><Link to="/account" className="btn btn-accent">My Account</Link></div></div></main>;
-  }
-
   if (loading) return <main className="content-area"><div className="container"><p className="loading">Loading...</p></div></main>;
 
   const isEmpty = !cart || !cart.items || cart.items.length === 0;
@@ -142,64 +163,87 @@ export default function CheckoutPage() {
     <main className="content-area">
       <div className="container checkout-container">
         <h1 className="page-title">Checkout</h1>
-        {error && <div style={{ background: '#442222', color: '#ff6666', padding: 12, borderRadius: 4, marginBottom: 16 }}>{error}</div>}
+        {error && <div className="alert alert-error">{error}</div>}
         <div className="checkout-layout">
           <div className="checkout-main">
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <h3 style={{ marginBottom: 20 }}>Billing Details</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div className="form-row">
-                  <label>First Name *</label>
-                  <input name="first_name" value={form.first_name} onChange={handleChange} required />
+                  <label htmlFor="billing-first-name">First Name *</label>
+                  <input id="billing-first-name" name="first_name" value={form.first_name} onChange={handleChange} required />
                 </div>
                 <div className="form-row">
-                  <label>Last Name *</label>
-                  <input name="last_name" value={form.last_name} onChange={handleChange} required />
+                  <label htmlFor="billing-last-name">Last Name *</label>
+                  <input id="billing-last-name" name="last_name" value={form.last_name} onChange={handleChange} required />
                 </div>
               </div>
               <div className="form-row">
-                <label>Email *</label>
-                <input type="email" name="email" value={form.email} onChange={handleChange} required />
+                <label htmlFor="billing-email">Email *</label>
+                <input id="billing-email" type="email" name="email" value={form.email} onChange={handleChange} required />
               </div>
               <div className="form-row">
-                <label>Phone</label>
-                <input type="tel" name="phone" value={form.phone} onChange={handleChange} />
+                <label htmlFor="billing-phone">Phone</label>
+                <input id="billing-phone" type="tel" name="phone" value={form.phone} onChange={handleChange} />
               </div>
               <div className="form-row">
-                <label>Address *</label>
-                <input name="address" value={form.address} onChange={handleChange} required />
+                <label htmlFor="billing-address">Address *</label>
+                <input id="billing-address" name="address" value={form.address} onChange={handleChange} required />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
                 <div className="form-row">
-                  <label>City *</label>
-                  <input name="city" value={form.city} onChange={handleChange} required />
+                  <label htmlFor="billing-city">City *</label>
+                  <input id="billing-city" name="city" value={form.city} onChange={handleChange} required />
                 </div>
                 <div className="form-row">
-                  <label>Province *</label>
-                  <input name="province" value={form.province} onChange={handleChange} required />
+                  <label htmlFor="billing-province">Province *</label>
+                  <input id="billing-province" name="province" value={form.province} onChange={handleChange} required />
                 </div>
                 <div className="form-row">
-                  <label>Postcode *</label>
-                  <input name="postcode" value={form.postcode} onChange={handleChange} required />
+                  <label htmlFor="billing-postcode">Postcode *</label>
+                  <input id="billing-postcode" name="postcode" value={form.postcode} onChange={handleChange} required />
                 </div>
               </div>
 
               <h3 style={{ margin: '24px 0 12px' }}>Payment Method</h3>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-                <label style={{ flex: 1, padding: 12, border: `2px solid ${paymentMethod === 'stripe' ? '#d4a84b' : '#333'}`, borderRadius: 8, cursor: 'pointer', textAlign: 'center' }}>
-                  <input type="radio" name="payment" value="stripe" checked={paymentMethod === 'stripe'} onChange={() => setPaymentMethod('stripe')} style={{ display: 'none' }} />
-                  <div>💳 Credit / Debit</div>
-                  <small style={{ color: '#888' }}>Visa, Mastercard, Amex</small>
-                </label>
-                <label style={{ flex: 1, padding: 12, border: `2px solid ${paymentMethod === 'paypal' ? '#d4a84b' : '#333'}`, borderRadius: 8, cursor: 'pointer', textAlign: 'center' }}>
-                  <input type="radio" name="payment" value="paypal" checked={paymentMethod === 'paypal'} onChange={() => setPaymentMethod('paypal')} style={{ display: 'none' }} />
-                  <div>🅿️ PayPal</div>
-                  <small style={{ color: '#888' }}>PayPal + Credit Card</small>
-                </label>
-              </div>
+              <fieldset style={{ border: 'none', padding: 0, margin: 0, marginBottom: 20 }}>
+                <legend className="sr-only">Select payment method</legend>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div
+                    className={`payment-method-card ${paymentMethod === 'stripe' ? 'selected' : ''}`}
+                    onClick={() => setPaymentMethod('stripe')}
+                    role="radio"
+                    aria-checked={paymentMethod === 'stripe'}
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setPaymentMethod('stripe'); } }}
+                  >
+                    <input type="radio" name="payment" value="stripe" checked={paymentMethod === 'stripe'} onChange={() => setPaymentMethod('stripe')} tabIndex={-1} />
+                    <div className="pm-label">Credit / Debit</div>
+                    <div className="pm-desc">Visa, Mastercard, Amex</div>
+                  </div>
+                  <div
+                    className={`payment-method-card ${paymentMethod === 'paypal' ? 'selected' : ''}`}
+                    onClick={() => setPaymentMethod('paypal')}
+                    role="radio"
+                    aria-checked={paymentMethod === 'paypal'}
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setPaymentMethod('paypal'); } }}
+                  >
+                    <input type="radio" name="payment" value="paypal" checked={paymentMethod === 'paypal'} onChange={() => setPaymentMethod('paypal')} tabIndex={-1} />
+                    <div className="pm-label">PayPal</div>
+                    <div className="pm-desc">PayPal + Credit Card</div>
+                  </div>
+                </div>
+              </fieldset>
 
-              <button type="submit" className="btn btn-accent" disabled={submitting} style={{ width: '100%', marginTop: 20, padding: 16, fontSize: 16 }}>
-                {submitting ? 'Processing...' : `Pay $${total.toFixed(2)} — ${paymentMethod === 'stripe' ? 'Pay with Card' : 'Pay with PayPal'}`}
+              {paymentMethod === 'stripe' && (
+                <div className="stripe-card-container">
+                  <CardElement options={cardStyle} />
+                </div>
+              )}
+
+              <button type="submit" className="btn btn-accent btn-lg" disabled={submitting} style={{ width: '100%' }}>
+                {submitting ? 'Processing...' : `Pay $${total.toFixed(2)}`}
               </button>
             </form>
           </div>
@@ -208,7 +252,7 @@ export default function CheckoutPage() {
               <h3>Order Summary</h3>
               {cart?.items?.map(item => (
                 <div key={item.key} className="checkout-mini-item">
-                  <div className="mini-item-thumb"><img src={item.image || ''} alt={item.name} /></div>
+                  <div className="mini-item-thumb"><img src={item.image || ''} alt={item.name} loading="lazy" /></div>
                   <div className="mini-item-info">
                     <span className="mini-item-name">{item.name}</span>
                     <span className="mini-item-qty">Qty: {item.quantity}</span>

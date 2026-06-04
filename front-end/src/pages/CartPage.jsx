@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getCart, updateCartItem, removeCartItem } from '../api/data';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../components/Toast';
 
 export default function CartPage() {
   const { user } = useAuth();
+  const { addToast } = useToast();
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [pendingQty, setPendingQty] = useState({});
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -14,17 +17,26 @@ export default function CartPage() {
   }, [user]);
 
   async function handleQtyChange(key, qty) {
+    if (qty < 1) qty = 1;
+    setPendingQty(prev => ({ ...prev, [key]: qty }));
     try {
-      const updated = await updateCartItem(key, qty);
+      const updated = await updateCartItem(parseInt(key), qty);
       setCart(updated);
-    } catch (e) { alert('Failed to update: ' + e.message); }
+      setPendingQty(prev => { const n = { ...prev }; delete n[key]; return n; });
+    } catch (e) {
+      addToast(e.message, 'error');
+      setPendingQty(prev => { const n = { ...prev }; delete n[key]; return n; });
+    }
   }
 
   async function handleRemove(key) {
     try {
-      const updated = await removeCartItem(key);
+      const updated = await removeCartItem(parseInt(key));
       setCart(updated);
-    } catch (e) { alert('Failed to remove: ' + e.message); }
+      addToast('Item removed from cart', 'info');
+    } catch (e) {
+      addToast(e.message, 'error');
+    }
   }
 
   if (loading) return <main className="content-area"><div className="container"><p className="loading">Loading cart...</p></div></main>;
@@ -44,6 +56,7 @@ export default function CartPage() {
   }
 
   const isEmpty = !cart || !cart.items || cart.items.length === 0;
+  const subtotal = !isEmpty ? cart.items.reduce((s, i) => s + i.price * i.quantity, 0) : 0;
 
   return (
     <main className="content-area">
@@ -62,7 +75,7 @@ export default function CartPage() {
         ) : (
           <>
             <div className="cart-table-wrap">
-              <table className="shop_table cart">
+              <table className="shop_table cart" aria-label="Shopping cart">
                 <thead>
                   <tr>
                     <th className="product-thumbnail">&nbsp;</th>
@@ -76,19 +89,28 @@ export default function CartPage() {
                 <tbody>
                   {cart.items.map(item => (
                     <tr key={item.key}>
-                      <td className="product-thumbnail">
-                        <img src={item.image || ''} alt={item.name} width="64" />
+                      <td className="product-thumbnail" data-title="Image">
+                        <img src={item.image || ''} alt={item.name} width="64" height="64" loading="lazy" />
                       </td>
                       <td className="product-name" data-title="Product">
                         <Link to={`/product/${item.slug}`}>{item.name}</Link>
                       </td>
                       <td className="product-price" data-title="Price">${item.price.toFixed(2)}</td>
                       <td className="product-quantity" data-title="Quantity">
-                        <input type="number" className="qty" value={item.quantity} min="1" max={Math.min(99, item.stock)} onChange={e => handleQtyChange(parseInt(item.key), parseInt(e.target.value) || 1)} style={{ width: 60 }} />
+                        <label htmlFor={`qty-${item.key}`} className="sr-only">Quantity for {item.name}</label>
+                        <input
+                          id={`qty-${item.key}`}
+                          type="number"
+                          className="qty"
+                          value={pendingQty[item.key] ?? item.quantity}
+                          min="1"
+                          max={Math.min(99, item.stock)}
+                          onChange={e => handleQtyChange(parseInt(item.key), parseInt(e.target.value) || 1)}
+                        />
                       </td>
-                      <td className="product-subtotal" data-title="Subtotal">${(item.price * item.quantity).toFixed(2)}</td>
-                      <td className="product-remove">
-                        <button className="remove" onClick={() => handleRemove(parseInt(item.key))}>&times;</button>
+                      <td className="product-subtotal" data-title="Subtotal">${(item.price * (pendingQty[item.key] ?? item.quantity)).toFixed(2)}</td>
+                      <td className="product-remove" data-title="Remove">
+                        <button className="remove" onClick={() => handleRemove(parseInt(item.key))} aria-label={`Remove ${item.name} from cart`}>&times;</button>
                       </td>
                     </tr>
                   ))}
@@ -101,17 +123,20 @@ export default function CartPage() {
                 <h2>Cart Totals</h2>
                 <table>
                   <tbody>
-                    <tr><th>Subtotal</th><td>${(cart.items.reduce((s, i) => s + i.price * i.quantity, 0)).toFixed(2)}</td></tr>
+                    <tr><th>Subtotal</th><td>${subtotal.toFixed(2)}</td></tr>
                     <tr><th>Shipping</th><td>Calculated at checkout</td></tr>
-                    <tr className="order-total"><th>Total</th><td>${(cart.items.reduce((s, i) => s + i.price * i.quantity, 0)).toFixed(2)}</td></tr>
+                    <tr className="order-total"><th>Total</th><td>${subtotal.toFixed(2)}</td></tr>
                   </tbody>
                 </table>
-                <div className="wc-proceed-to-checkout">
-                  <Link to="/checkout" className="btn btn-accent" style={{ width: '100%', textAlign: 'center', marginTop: 16 }}>Proceed to Checkout</Link>
+                <div className="wc-proceed-to-checkout" style={{ marginTop: 16 }}>
+                  <Link to="/checkout" className="btn btn-accent" style={{ width: '100%', textAlign: 'center' }}>Proceed to Checkout</Link>
                 </div>
               </div>
-              <div className="cart-shipping-note">
-                <p>🇨🇦 Free shipping on orders over $100 CAD within Canada.</p>
+              <div>
+                <div className="cart-shipping-note">
+                  <p>Free shipping on orders over $100 CAD within Canada.</p>
+                </div>
+                <Link to="/shop" className="btn btn-outline" style={{ width: '100%', textAlign: 'center', marginTop: 12 }}>Continue Shopping</Link>
               </div>
             </div>
           </>

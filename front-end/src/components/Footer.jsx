@@ -7,7 +7,7 @@ export default function Footer() {
         <div className="footer-grid">
           <div className="footer-col footer-brand">
             <h4 className="footer-site-title">Mecville</h4>
-            <p>Premium Pokémon TCG singles, sealed products, and graded cards. Fast shipping across Canada.</p>
+            <p>Premium Pokemon TCG singles, sealed products, and graded cards. Fast shipping across Canada.</p>
           </div>
           <div className="footer-col">
             <h4>Shop</h4>
@@ -42,10 +42,21 @@ export default function Footer() {
         </div>
         <div className="footer-bottom">
           <p>&copy; {new Date().getFullYear()} Mecville. All rights reserved.</p>
-          <div className="payment-icons">
-            <svg width="40" height="24" viewBox="0 0 40 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="1" width="38" height="22" rx="3"/><text x="20" y="16" textAnchor="middle" fontSize="10" fill="currentColor" stroke="none">Visa</text></svg>
-            <svg width="40" height="24" viewBox="0 0 40 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="1" width="38" height="22" rx="3"/><text x="20" y="16" textAnchor="middle" fontSize="9" fill="currentColor" stroke="none">MC</text></svg>
-            <svg width="40" height="24" viewBox="0 0 40 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="1" width="38" height="22" rx="3"/><text x="20" y="16" textAnchor="middle" fontSize="8" fill="currentColor" stroke="none">PP</text></svg>
+          <div className="payment-icons" aria-label="Accepted payment methods">
+            <svg width="36" height="24" viewBox="0 0 36 24" fill="none" role="img" aria-label="Visa">
+              <rect x="0.5" y="0.5" width="35" height="23" rx="3" fill="#1a1f71" stroke="#2a3441"/>
+              <text x="18" y="16" textAnchor="middle" fontSize="10" fontWeight="700" fill="#fff" fontFamily="sans-serif">VISA</text>
+            </svg>
+            <svg width="36" height="24" viewBox="0 0 36 24" fill="none" role="img" aria-label="Mastercard">
+              <rect x="0.5" y="0.5" width="35" height="23" rx="3" fill="#1a1a1a" stroke="#2a3441"/>
+              <circle cx="14" cy="12" r="6" fill="#eb001b" opacity="0.9"/>
+              <circle cx="22" cy="12" r="6" fill="#f79e1b" opacity="0.8"/>
+              <circle cx="18" cy="12" r="6" fill="#ff5f00" opacity="0.5"/>
+            </svg>
+            <svg width="36" height="24" viewBox="0 0 36 24" fill="none" role="img" aria-label="PayPal">
+              <rect x="0.5" y="0.5" width="35" height="23" rx="3" fill="#003087" stroke="#2a3441"/>
+              <text x="18" y="16" textAnchor="middle" fontSize="9" fontWeight="700" fill="#009cde" fontFamily="sans-serif">PayPal</text>
+            </svg>
           </div>
         </div>
       </div>

@@ -122,7 +122,6 @@ router.post('/stripe/confirm', requireAuth, async (req, res, next) => {
     const intent = await confirmPayment(paymentId);
 
     if (intent.status === 'succeeded') {
-      // Update order status
       const { data: order } = await supabase
         .from('orders')
         .update({
@@ -133,25 +132,32 @@ router.post('/stripe/confirm', requireAuth, async (req, res, next) => {
         .select()
         .single();
 
-      // Decrement stock
       if (order) {
-        for (const item of order.items || []) {
+        const { data: orderItems } = await supabase
+          .from('order_items')
+          .select('product_id, quantity, name, total')
+          .eq('order_id', order.id);
+
+        for (const item of orderItems || []) {
           await supabase.rpc('decrement_stock', {
             product_id: item.product_id,
             qty: item.quantity,
           });
         }
 
-        // Clear cart
         await supabase
           .from('cart_items')
           .delete()
           .eq('user_id', req.user.id);
 
-        // Send confirmation email
         try {
           const { sendOrderConfirmation } = await import('../services/email.js');
-          await sendOrderConfirmation(order);
+          await sendOrderConfirmation({
+            ...order,
+            items: orderItems || [],
+            subtotal: order.subtotal || orderItems?.reduce((s, i) => s + Number(i.total), 0) || 0,
+            shipping_cost: order.shipping_cost || 0,
+          });
         } catch { /* email failure is non-critical */ }
       }
 
@@ -284,10 +290,9 @@ router.post('/paypal/capture', requireAuth, async (req, res, next) => {
         .single();
 
       if (order) {
-        // Decrement stock
         const { data: items } = await supabase
           .from('order_items')
-          .select('product_id, quantity')
+          .select('product_id, quantity, name, total')
           .eq('order_id', order.id);
 
         for (const item of items || []) {
@@ -301,7 +306,12 @@ router.post('/paypal/capture', requireAuth, async (req, res, next) => {
 
         try {
           const { sendOrderConfirmation } = await import('../services/email.js');
-          await sendOrderConfirmation({ ...order, items: items || [] });
+          await sendOrderConfirmation({
+            ...order,
+            items: items || [],
+            subtotal: order.subtotal || items?.reduce((s, i) => s + Number(i.total), 0) || 0,
+            shipping_cost: order.shipping_cost || 0,
+          });
         } catch { /* non-critical */ }
       }
 

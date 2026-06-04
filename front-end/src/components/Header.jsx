@@ -44,8 +44,6 @@ export default function Header() {
         <div className="site-branding">
           <Link to="/" className="brand-logo">
             <img src={logo} alt="Mecville Logo" width="65" height="auto"/>
-            <circle cx="12" cy="12" r="10" />
-            <path d="M8 12l2 2 4-4" />
             <span className="site-title">Mecville</span>
           </Link>
         </div>

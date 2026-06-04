@@ -1,30 +1,53 @@
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import Seo from '../components/Seo';
+import { getProducts } from '../api/data';
+
 export default function GalleryPage() {
-  const galleryItems = [
-    { id: 1, title: 'Premium Singles', description: 'Highly sought-after rare cards ready to ship.', image: 'https://images.unsplash.com/photo-1597764693868-4b89be963fe0?auto=format&fit=crop&w=1200&q=80' },
-    { id: 2, title: 'Sealed Sets', description: 'New sealed products for collectors and players.', image: 'https://images.unsplash.com/photo-1602021581649-ee882b428ab1?auto=format&fit=crop&w=1200&q=80' },
-    { id: 3, title: 'Graded Cards', description: 'Certified graded cards with premium condition.', image: 'https://images.unsplash.com/photo-1533232038690-2ceb7c5743bf?auto=format&fit=crop&w=1200&q=80' },
-    { id: 4, title: 'Bundles & Packs', description: 'Value bundles for opening fun and new collections.', image: 'https://images.unsplash.com/photo-1579129367838-d6c77a2de0e1?auto=format&fit=crop&w=1200&q=80' },
-  ];
+  const [galleryItems, setGalleryItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getProducts({ page: 1, perPage: 50 })
+      .then(({ data }) => {
+        const withImages = (data || []).filter(p => p.images && p.images.length > 0);
+        setGalleryItems(withImages.slice(0, 12));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <main className="content-area">
+      <Seo title="Gallery" description="Explore Mecville's product highlights and premium Pokémon TCG collectables." />
       <div className="container">
         <section className="page-intro">
           <h1>Gallery</h1>
-          <p>Explore Mecville’s product highlights and premium collectables. Browse curated card collections, sealed sets, and graded inventory in one place.</p>
+          <p>Explore Mecville's product highlights and premium collectables. Browse curated card collections, sealed sets, and graded inventory in one place.</p>
         </section>
 
-        <div className="gallery-grid">
-          {galleryItems.map(item => (
-            <article className="gallery-card" key={item.id}>
-              <img src={item.image} alt={item.title} />
-              <div className="gallery-card-content">
-                <h3 className="gallery-card-title">{item.title}</h3>
-                <p className="gallery-card-description">{item.description}</p>
-              </div>
-            </article>
-          ))}
-        </div>
+        {loading ? (
+          <div className="loading">Loading...</div>
+        ) : galleryItems.length > 0 ? (
+          <div className="gallery-grid">
+            {galleryItems.map(item => (
+              <Link to={`/product/${item.slug}`} key={item.id} style={{ textDecoration: 'none' }}>
+                <article className="gallery-card">
+                  <img src={item.images?.[0]?.src} alt={item.name} />
+                  <div className="gallery-card-content">
+                    <h3 className="gallery-card-title">{item.name}</h3>
+                    <p className="gallery-card-description">{item.short_description?.replace(/<[^>]*>/g, '').slice(0, 120) || 'Premium collectable card or product.'}</p>
+                  </div>
+                </article>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: 60 }}>
+            <p style={{ color: '#8892a4', fontSize: 18, marginBottom: 24 }}>Gallery items will appear here once products with images are added.</p>
+            <Link to="/shop" className="btn btn-accent">Browse Shop</Link>
+          </div>
+        )}
       </div>
     </main>
   );

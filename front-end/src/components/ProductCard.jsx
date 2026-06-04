@@ -1,12 +1,42 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { addToCart } from '../api/data';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from './Toast';
 
 export default function ProductCard({ product }) {
+  const { user } = useAuth();
+  const { addToast } = useToast();
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
+
   const img = product.images?.[0]?.src || '';
   const price = Number(product.price) || 0;
   const comparePrice = product.compare_price ? Number(product.compare_price) : null;
   const isOnSale = !!comparePrice && comparePrice > price;
   const inStock = product.stock > 0;
   const attrs = Object.values(product.attributes || {}).filter(Boolean).slice(0, 3);
+
+  async function handleAddToCart(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      addToast('Please log in to add items to your cart', 'info');
+      return;
+    }
+    if (!inStock) return;
+    setAdding(true);
+    try {
+      await addToCart(product.id, 1);
+      setAdded(true);
+      addToast(`Added "${product.name}" to cart`, 'success');
+      setTimeout(() => setAdded(false), 1500);
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setAdding(false);
+    }
+  }
 
   return (
     <div className={`product-card ${!inStock ? 'product-out-of-stock' : ''}`}>
@@ -31,6 +61,14 @@ export default function ProductCard({ product }) {
           </div>
         </div>
       </Link>
+      <button
+        className={`product-card-add ${added ? 'added' : ''}`}
+        onClick={handleAddToCart}
+        disabled={!inStock || adding}
+        aria-label={inStock ? `Add ${product.name} to cart` : `${product.name} is out of stock`}
+      >
+        {!inStock ? 'Out of Stock' : added ? 'Added!' : 'Add to Cart'}
+      </button>
     </div>
   );
 }
