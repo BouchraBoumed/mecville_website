@@ -45,15 +45,15 @@ cp back-end/.env.example back-end/.env
 **front-end/.env** — required:
 ```
 VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...
 ```
 
 **back-end/.env** — required:
 ```
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SECRET_KEY=your-secret-key
+SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 CORS_ORIGIN=http://localhost:5173

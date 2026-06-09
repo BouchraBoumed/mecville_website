@@ -9,8 +9,7 @@
  *   WC_CONSUMER_KEY=ck_...                 # WooCommerce API key (if needed)
  *   WC_CONSUMER_SECRET=cs_...              # WooCommerce API secret (if needed)
  *   SUPABASE_URL=...                       # Already in .env
- *   SUPABASE_SERVICE_ROLE_KEY=...          # Already in .env
- */
+ *   SUPABASE_SECRET_KEY=...                 # Already in .env
 
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
@@ -21,16 +20,15 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-// ── Config ──────────────────────────────────────────────────
 const WC_URL = process.env.WC_URL || 'http://localhost:8881';
 const WC_KEY = process.env.WC_CONSUMER_KEY;
 const WC_SECRET = process.env.WC_CONSUMER_SECRET;
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env');
+  console.error('Missing SUPABASE_URL or SUPABASE_SECRET_KEY in .env');
   process.exit(1);
 }
 

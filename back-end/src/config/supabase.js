@@ -3,26 +3,24 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.warn('⚠  Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env');
-  console.warn('   Backend will start but Supabase features will fail at runtime.');
+if (!supabaseUrl || !supabaseSecretKey) {
+  console.warn('Missing SUPABASE_URL or SUPABASE_SECRET_KEY in .env');
+  console.warn('Backend will start but Supabase features will fail at runtime.');
 }
 
-// Admin client with service_role key — bypasses RLS for server operations
-export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+export const supabase = createClient(supabaseUrl, supabaseSecretKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,
   },
 });
 
-// Helper to create an authenticated client for a specific user
 export function getAuthenticatedClient(jwt) {
   return createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY,
+    process.env.SUPABASE_PUBLISHABLE_KEY,
     { global: { headers: { Authorization: `Bearer ${jwt}` } } }
   );
 }
