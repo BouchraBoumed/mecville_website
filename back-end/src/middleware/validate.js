@@ -5,9 +5,9 @@ function sanitize(obj) {
   const result = {};
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'string') {
-      const trimmed = value.trim();
+      const trimmed = value.trim().replace(/<[^>]*>/g, '');
       if (trimmed.length > 0) result[key] = trimmed;
-    } else if (value !== null && value !== undefined) {
+    } else if (value !== null && value !== undefined && !Array.isArray(value) && typeof value !== 'object') {
       result[key] = value;
     }
   }

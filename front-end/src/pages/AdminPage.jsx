@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getAdminStats, getAdminOrders, updateOrderStatus,
-  getAdminProducts, updateProduct, deleteProduct,
+  getAdminProducts, createProduct, updateProduct, deleteProduct,
   getAdminCustomers, getAdminMessages, markMessageRead,
   getAdminReviews, updateReview,
 } from '../api/backend';
@@ -18,6 +18,12 @@ const NAV_ITEMS = [
   { key: 'reviews', label: 'Reviews' },
 ];
 
+const EMPTY_PRODUCT = {
+  name: '', slug: '', description: '', short_description: '',
+  price: '', compare_price: '', sku: '', stock: '0', stock_alert: '5',
+  category_id: '', images: [], attributes: {}, featured: false, active: true,
+};
+
 export default function AdminPage() {
   const { user, isAdmin } = useAuth();
   const { addToast } = useToast();
@@ -30,6 +36,12 @@ export default function AdminPage() {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [productForm, setProductForm] = useState(EMPTY_PRODUCT);
+  const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -77,11 +89,103 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  async function handleUpdateOrderStatus(id, status) {
+  function openNewProduct() {
+    setEditingProduct(null);
+    setProductForm({ ...EMPTY_PRODUCT });
+    setShowProductForm(true);
+  }
+
+  function openEditProduct(p) {
+    setEditingProduct(p);
+    setProductForm({
+      name: p.name || '',
+      slug: p.slug || '',
+      description: p.description || '',
+      short_description: p.short_description || '',
+      price: p.price ? String(p.price) : '',
+      compare_price: p.compare_price ? String(p.compare_price) : '',
+      sku: p.sku || '',
+      stock: String(p.stock ?? 0),
+      stock_alert: String(p.stock_alert ?? 5),
+      category_id: p.category_id || '',
+      images: p.images || [],
+      attributes: p.attributes || {},
+      featured: p.featured || false,
+      active: p.active,
+    });
+    setShowProductForm(true);
+  }
+
+  function handleFormChange(field, value) {
+    setProductForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  function handleImageAdd() {
+    const url = prompt('Enter image URL:');
+    if (url && url.trim()) {
+      setProductForm(prev => ({
+        ...prev,
+        images: [...prev.images, { src: url.trim(), alt: prev.name || 'Product image' }],
+      }));
+    }
+  }
+
+  function handleImageRemove(index) {
+    setProductForm(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+  }
+
+  async function handleSaveProduct(e) {
+    e.preventDefault();
+    setSaving(true);
     try {
-      await updateOrderStatus(id, { status });
-      addToast(`Order updated to ${status}`, 'success');
-      fetchOrders();
+      const payload = {
+        name: productForm.name,
+        slug: productForm.slug,
+        description: productForm.description,
+        short_description: productForm.short_description,
+        price: parseFloat(productForm.price) || 0,
+        compare_price: productForm.compare_price ? parseFloat(productForm.compare_price) : null,
+        sku: productForm.sku || null,
+        stock: parseInt(productForm.stock) || 0,
+        stock_alert: parseInt(productForm.stock_alert) || 5,
+        category_id: productForm.category_id || null,
+        images: productForm.images,
+        attributes: productForm.attributes,
+        featured: productForm.featured,
+        active: productForm.active,
+      };
+
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, payload);
+        addToast('Product updated', 'success');
+      } else {
+        await createProduct(payload);
+        addToast('Product created', 'success');
+      }
+
+      setShowProductForm(false);
+      fetchProducts();
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteProduct(p) {
+    if (confirmDelete !== p.id) {
+      setConfirmDelete(p.id);
+      setTimeout(() => setConfirmDelete(null), 4000);
+      return;
+    }
+    try {
+      await deleteProduct(p.id);
+      addToast('Product deleted', 'success');
+      setConfirmDelete(null);
+      fetchProducts();
     } catch (err) {
       addToast(err.message, 'error');
     }
@@ -112,6 +216,16 @@ export default function AdminPage() {
       await markMessageRead(id);
       addToast('Message marked as read', 'success');
       fetchMessages();
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  }
+
+  async function handleUpdateOrderStatus(id, status) {
+    try {
+      await updateOrderStatus(id, { status });
+      addToast(`Order updated to ${status}`, 'success');
+      fetchOrders();
     } catch (err) {
       addToast(err.message, 'error');
     }
@@ -157,6 +271,7 @@ export default function AdminPage() {
           <div className="shop-content">
             {loading && <p>Loading...</p>}
 
+            {/* DASHBOARD */}
             {tab === 'dashboard' && stats && (
               <div>
                 <div className="admin-stats-grid">
@@ -216,6 +331,7 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* ORDERS */}
             {tab === 'orders' && (
               <table className="shop_table" style={{ width: '100%' }}>
                 <thead><tr><th>Order #</th><th>Email</th><th>Total</th><th>Status</th><th>Payment</th><th>Action</th></tr></thead>
@@ -245,32 +361,131 @@ export default function AdminPage() {
               </table>
             )}
 
+            {/* PRODUCTS */}
             {tab === 'products' && (
-              <table className="shop_table" style={{ width: '100%' }}>
-                <thead><tr><th>Name</th><th>SKU</th><th>Price</th><th>Stock</th><th>Active</th><th>Actions</th></tr></thead>
-                <tbody>
-                  {products.map(p => (
-                    <tr key={p.id}>
-                      <td data-title="Name">{p.name}</td>
-                      <td data-title="SKU">{p.sku || '-'}</td>
-                      <td data-title="Price">${Number(p.price).toFixed(2)}</td>
-                      <td data-title="Stock" style={{ color: p.stock <= p.stock_alert ? 'var(--color-accent)' : 'inherit' }}>{p.stock}</td>
-                      <td data-title="Active">{p.active ? 'Yes' : 'No'}</td>
-                      <td data-title="Actions">
-                        <button
-                          className={`btn btn-xs ${p.active ? 'btn-danger' : 'btn-primary'}`}
-                          onClick={() => handleToggleProductActive(p, !p.active)}
-                        >
-                          {p.active ? 'Deactivate' : 'Activate'}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                  <h3 style={{ margin: 0 }}>Products ({products.length})</h3>
+                  <button className="btn btn-accent btn-sm" onClick={openNewProduct}>+ Add Product</button>
+                </div>
+
+                {showProductForm && (
+                  <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-accent)', borderRadius: 'var(--radius-md)', padding: 24, marginBottom: 24 }}>
+                    <h3 style={{ marginBottom: 20 }}>{editingProduct ? `Edit: ${editingProduct.name}` : 'New Product'}</h3>
+                    <form onSubmit={handleSaveProduct} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div className="form-row">
+                          <label htmlFor="prod-name">Name *</label>
+                          <input id="prod-name" type="text" value={productForm.name} onChange={e => {
+                            handleFormChange('name', e.target.value);
+                            handleFormChange('slug', e.target.value.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-'));
+                          }} required />
+                        </div>
+                        <div className="form-row">
+                          <label htmlFor="prod-slug">Slug *</label>
+                          <input id="prod-slug" type="text" value={productForm.slug} onChange={e => handleFormChange('slug', e.target.value)} required />
+                        </div>
+                        <div className="form-row">
+                          <label htmlFor="prod-price">Price ($) *</label>
+                          <input id="prod-price" type="number" step="0.01" min="0" value={productForm.price} onChange={e => handleFormChange('price', e.target.value)} required />
+                        </div>
+                        <div className="form-row">
+                          <label htmlFor="prod-compare">Compare Price ($)</label>
+                          <input id="prod-compare" type="number" step="0.01" min="0" value={productForm.compare_price} onChange={e => handleFormChange('compare_price', e.target.value)} />
+                        </div>
+                        <div className="form-row">
+                          <label htmlFor="prod-sku">SKU</label>
+                          <input id="prod-sku" type="text" value={productForm.sku} onChange={e => handleFormChange('sku', e.target.value)} />
+                        </div>
+                        <div className="form-row">
+                          <label htmlFor="prod-stock">Stock</label>
+                          <input id="prod-stock" type="number" min="0" value={productForm.stock} onChange={e => handleFormChange('stock', e.target.value)} />
+                        </div>
+                      </div>
+
+                      <div className="form-row">
+                        <label htmlFor="prod-short">Short Description</label>
+                        <input id="prod-short" type="text" value={productForm.short_description} onChange={e => handleFormChange('short_description', e.target.value)} />
+                      </div>
+                      <div className="form-row">
+                        <label htmlFor="prod-desc">Full Description (HTML OK)</label>
+                        <textarea id="prod-desc" rows="4" value={productForm.description} onChange={e => handleFormChange('description', e.target.value)} />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Images</label>
+                        {productForm.images.map((img, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, background: 'var(--color-bg)', padding: 6, borderRadius: 4 }}>
+                            <img src={img.src} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />
+                            <input type="text" value={img.src} onChange={e => {
+                              const imgs = [...productForm.images];
+                              imgs[i] = { ...imgs[i], src: e.target.value };
+                              handleFormChange('images', imgs);
+                            }} style={{ flex: 1, padding: '6px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 4, color: 'var(--color-text)', fontSize: 13 }} />
+                            <button type="button" className="btn btn-xs btn-danger" onClick={() => handleImageRemove(i)}>Remove</button>
+                          </div>
+                        ))}
+                        <button type="button" className="btn btn-xs btn-outline" onClick={handleImageAdd} style={{ marginTop: 4 }}>+ Add Image URL</button>
+                      </div>
+
+                      <fieldset style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: '12px 16px', display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                        <legend style={{ fontSize: 13, color: 'var(--color-text-muted)', padding: '0 8px' }}>Attributes</legend>
+                        <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          <input type="checkbox" checked={productForm.featured} onChange={e => handleFormChange('featured', e.target.checked)} /> Featured
+                        </label>
+                        <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          <input type="checkbox" checked={productForm.active} onChange={e => handleFormChange('active', e.target.checked)} /> Active / Published
+                        </label>
+                      </fieldset>
+
+                      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                        <button type="submit" className="btn btn-accent btn-sm" disabled={saving}>
+                          {saving ? 'Saving...' : editingProduct ? 'Update Product' : 'Create Product'}
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {products.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32 }}>No products found.</td></tr>}
-                </tbody>
-              </table>
+                        <button type="button" className="btn btn-outline btn-sm" onClick={() => setShowProductForm(false)}>Cancel</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {products.length > 0 ? (
+                  <table className="shop_table" style={{ width: '100%' }}>
+                    <thead><tr><th>Name</th><th>SKU</th><th>Price</th><th>Stock</th><th>Active</th><th>Actions</th></tr></thead>
+                    <tbody>
+                      {products.map(p => (
+                        <tr key={p.id}>
+                          <td data-title="Name"><strong>{p.name}</strong></td>
+                          <td data-title="SKU">{p.sku || '-'}</td>
+                          <td data-title="Price">${Number(p.price).toFixed(2)}</td>
+                          <td data-title="Stock" style={{ color: p.stock <= (p.stock_alert || 5) ? 'var(--color-accent)' : 'inherit' }}>{p.stock}</td>
+                          <td data-title="Active">{p.active ? 'Yes' : 'No'}</td>
+                          <td data-title="Actions" style={{ whiteSpace: 'nowrap' }}>
+                            <button className="btn btn-xs btn-outline" style={{ marginRight: 6 }} onClick={() => openEditProduct(p)}>Edit</button>
+                            <button
+                              className={`btn btn-xs ${confirmDelete === p.id ? 'btn-danger' : 'btn-outline'}`}
+                              style={{ marginRight: 6 }}
+                              onClick={() => handleDeleteProduct(p)}
+                            >
+                              {confirmDelete === p.id ? 'Confirm?' : 'Delete'}
+                            </button>
+                            <button
+                              className={`btn btn-xs ${p.active ? 'btn-danger' : 'btn-primary'}`}
+                              onClick={() => handleToggleProductActive(p, !p.active)}
+                            >
+                              {p.active ? 'Deactivate' : 'Activate'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  !showProductForm && <p className="no-results">No products yet. Click "Add Product" to get started.</p>
+                )}
+              </div>
             )}
 
+            {/* CUSTOMERS */}
             {tab === 'customers' && (
               <table className="shop_table" style={{ width: '100%' }}>
                 <thead><tr><th>Name</th><th>Email</th><th>Orders</th><th>Total Spent</th><th>Joined</th></tr></thead>
@@ -289,6 +504,7 @@ export default function AdminPage() {
               </table>
             )}
 
+            {/* MESSAGES */}
             {tab === 'messages' && (
               <div>
                 {messages.map(m => (
@@ -301,9 +517,7 @@ export default function AdminPage() {
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         <small style={{ color: 'var(--color-text-muted)' }}>{new Date(m.created_at).toLocaleString()}</small>
                         {!m.read && (
-                          <button className="btn btn-xs btn-outline" onClick={() => handleMarkRead(m.id)}>
-                            Mark Read
-                          </button>
+                          <button className="btn btn-xs btn-outline" onClick={() => handleMarkRead(m.id)}>Mark Read</button>
                         )}
                       </div>
                     </div>
@@ -314,6 +528,7 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* REVIEWS */}
             {tab === 'reviews' && (
               <table className="shop_table" style={{ width: '100%' }}>
                 <thead><tr><th>Product</th><th>Author</th><th>Rating</th><th>Content</th><th>Status</th><th>Action</th></tr></thead>

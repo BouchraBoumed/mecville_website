@@ -117,6 +117,7 @@ router.post('/stripe/confirm', requireAuth, async (req, res, next) => {
   try {
     const { paymentId } = req.body;
     if (!paymentId) throw new AppError('paymentId is required', 400);
+    const userId = req.user.id;
 
     const { confirmPayment } = await import('../services/stripe.js');
     const intent = await confirmPayment(paymentId);
@@ -129,6 +130,7 @@ router.post('/stripe/confirm', requireAuth, async (req, res, next) => {
           status: 'processing',
         })
         .eq('payment_id', paymentId)
+        .eq('user_id', userId)
         .select()
         .single();
 

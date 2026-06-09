@@ -5,15 +5,24 @@ import { supabase } from '../config/supabase.js';
 
 const router = Router();
 
-// All admin routes require auth + admin role + rate limiting
 router.use(requireAuth, requireAdmin, apiLimiter);
 
-// GET /api/admin/stats — Dashboard statistics
+const ALLOWED_PRODUCT_FIELDS = [
+  'name', 'slug', 'description', 'short_description', 'price',
+  'compare_price', 'sku', 'stock', 'stock_alert', 'category_id',
+  'images', 'attributes', 'featured', 'active',
+];
+
+function pickAllowed(obj, allowed) {
+  const result = {};
+  for (const key of allowed) {
+    if (key in obj) result[key] = obj[key];
+  }
+  return result;
+}
+
 router.get('/stats', async (req, res, next) => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     const [
       { count: totalProducts },
       { count: totalOrders },
@@ -34,7 +43,6 @@ router.get('/stats', async (req, res, next) => {
         .limit(10),
       supabase.from('products')
         .select('id, name, sku, stock, stock_alert')
-        .lte('stock', supabase.rpc('get_stock_alert_threshold'))
         .order('stock', { ascending: true })
         .limit(20),
     ]);
@@ -47,7 +55,6 @@ router.get('/stats', async (req, res, next) => {
       totalCustomers,
       unreadMessages: totalMessages,
       totalRevenue,
-      revenueToday: 0, // TODO: implement daily revenue query
       recentOrders,
       lowStock: lowStock || [],
     });
@@ -149,7 +156,10 @@ router.get('/products', async (req, res, next) => {
 // POST /api/admin/products — Create product
 router.post('/products', async (req, res, next) => {
   try {
-    const product = req.body;
+    const product = pickAllowed(req.body, ALLOWED_PRODUCT_FIELDS);
+    if (!product.name || !product.slug) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'name and slug are required' } });
+    }
     const { data, error } = await supabase
       .from('products')
       .insert(product)
@@ -167,7 +177,11 @@ router.post('/products', async (req, res, next) => {
 router.patch('/products/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = pickAllowed(req.body, ALLOWED_PRODUCT_FIELDS);
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'No valid fields to update' } });
+    }
 
     const { data, error } = await supabase
       .from('products')
