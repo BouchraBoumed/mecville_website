@@ -6,6 +6,8 @@ import {
   getAdminProducts, createProduct, updateProduct, deleteProduct,
   getAdminCustomers, getAdminMessages, markMessageRead,
   getAdminReviews, updateReview,
+  getAdminCategories, createCategory, updateCategory, deleteCategory,
+  uploadProductImage, importCsv,
 } from '../api/backend';
 import { useToast } from '../components/Toast';
 
@@ -42,12 +44,16 @@ export default function AdminPage() {
   const [productForm, setProductForm] = useState(EMPTY_PRODUCT);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvResult, setCsvResult] = useState(null);
 
   useEffect(() => {
     if (!isAdmin) return;
     if (tab === 'dashboard') fetchStats();
     if (tab === 'orders') fetchOrders();
-    if (tab === 'products') fetchProducts();
+    if (tab === 'products') { fetchProducts(); fetchCategories(); }
     if (tab === 'customers') fetchCustomers();
     if (tab === 'messages') fetchMessages();
     if (tab === 'reviews') fetchReviews();
@@ -87,6 +93,47 @@ export default function AdminPage() {
     setLoading(true);
     try { setReviews((await getAdminReviews()).reviews); } catch (e) { setError(e.message); }
     setLoading(false);
+  }
+
+  async function fetchCategories() {
+    try { setCategories((await getAdminCategories()).categories); } catch (e) {}
+  }
+
+  async function handleImageUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const result = await uploadProductImage(file);
+      setProductForm(prev => ({
+        ...prev,
+        images: [...prev.images, { src: result.src, alt: result.alt || prev.name || 'Product image' }],
+      }));
+      addToast('Image uploaded', 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleCsvImport(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvImporting(true);
+    setCsvResult(null);
+    try {
+      const result = await importCsv(file);
+      setCsvResult(result);
+      addToast(`Imported ${result.created} products (${result.skipped} skipped, ${result.errors.length} errors)`, result.errors.length ? 'error' : 'success');
+      fetchProducts();
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setCsvImporting(false);
+      e.target.value = '';
+    }
   }
 
   function openNewProduct() {
@@ -364,10 +411,24 @@ export default function AdminPage() {
             {/* PRODUCTS */}
             {tab === 'products' && (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
                   <h3 style={{ margin: 0 }}>Products ({products.length})</h3>
-                  <button className="btn btn-accent btn-sm" onClick={openNewProduct}>+ Add Product</button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <label className="btn btn-outline btn-sm" style={{ cursor: 'pointer' }}>
+                      {csvImporting ? 'Importing...' : 'Import CSV'}
+                      <input type="file" accept=".csv" onChange={handleCsvImport} style={{ display: 'none' }} disabled={csvImporting} />
+                    </label>
+                    <button className="btn btn-accent btn-sm" onClick={openNewProduct}>+ Add Product</button>
+                  </div>
                 </div>
+
+                {csvResult && (
+                  <div className={`alert ${csvResult.errors.length ? 'alert-warning' : 'alert-success'}`} style={{ marginBottom: 16 }}>
+                    Imported {csvResult.created} products. {csvResult.skipped > 0 && `${csvResult.skipped} skipped. `}
+                    {csvResult.errors.length > 0 && `${csvResult.errors.length} errors: ${csvResult.errors.slice(0, 3).join('; ')}`}
+                    <button onClick={() => setCsvResult(null)} style={{ marginLeft: 12, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}>Dismiss</button>
+                  </div>
+                )}
 
                 {showProductForm && (
                   <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-accent)', borderRadius: 'var(--radius-md)', padding: 24, marginBottom: 24 }}>
@@ -412,6 +473,16 @@ export default function AdminPage() {
                         <textarea id="prod-desc" rows="4" value={productForm.description} onChange={e => handleFormChange('description', e.target.value)} />
                       </div>
 
+                      <div className="form-row">
+                        <label htmlFor="prod-category">Category</label>
+                        <select id="prod-category" value={productForm.category_id} onChange={e => handleFormChange('category_id', e.target.value)}>
+                          <option value="">— None —</option>
+                          {categories.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
                       <div>
                         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Images</label>
                         {productForm.images.map((img, i) => (
@@ -425,7 +496,21 @@ export default function AdminPage() {
                             <button type="button" className="btn btn-xs btn-danger" onClick={() => handleImageRemove(i)}>Remove</button>
                           </div>
                         ))}
-                        <button type="button" className="btn btn-xs btn-outline" onClick={handleImageAdd} style={{ marginTop: 4 }}>+ Add Image URL</button>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                          <label className="btn btn-xs btn-outline" style={{ cursor: 'pointer' }}>
+                            {uploading ? 'Uploading...' : 'Upload Image'}
+                            <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} disabled={uploading} />
+                          </label>
+                          <button type="button" className="btn btn-xs btn-outline" onClick={() => {
+                            const url = prompt('Or paste image URL:');
+                            if (url && url.trim()) {
+                              setProductForm(prev => ({
+                                ...prev,
+                                images: [...prev.images, { src: url.trim(), alt: prev.name || 'Product image' }],
+                              }));
+                            }
+                          }}>+ Paste URL</button>
+                        </div>
                       </div>
 
                       <fieldset style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: '12px 16px', display: 'flex', gap: 24, flexWrap: 'wrap' }}>

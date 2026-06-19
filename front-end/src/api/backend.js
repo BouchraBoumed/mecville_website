@@ -123,3 +123,72 @@ export async function updateReview(id, active) {
     body: JSON.stringify({ active }),
   });
 }
+
+// ── Admin Categories ──────────────────────────────────────────
+export async function getAdminCategories() {
+  return request('/admin/categories');
+}
+
+export async function createCategory(data) {
+  return request('/admin/categories', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateCategory(id, data) {
+  return request(`/admin/categories/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteCategory(id) {
+  return request(`/admin/categories/${id}`, { method: 'DELETE' });
+}
+
+// ── Admin Image Upload ────────────────────────────────────────
+export async function uploadProductImage(file) {
+  const token = localStorage.getItem('supabase.auth.token')
+    ? JSON.parse(localStorage.getItem('supabase.auth.token'))?.access_token
+    : null;
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const res = await fetch('/api/admin/upload-image', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: { message: res.statusText } }));
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+
+  return res.json();
+}
+
+// ── Admin CSV Import ──────────────────────────────────────────
+export async function importCsv(file) {
+  const token = localStorage.getItem('supabase.auth.token')
+    ? JSON.parse(localStorage.getItem('supabase.auth.token'))?.access_token
+    : null;
+
+  const formData = new FormData();
+  formData.append('csv', file);
+
+  const res = await fetch('/api/admin/import-csv', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: { message: res.statusText } }));
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+
+  return res.json();
+}
