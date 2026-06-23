@@ -3,15 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n wp,api,react -c blue,green,yellow \"npx wp-now start\" \"npm run dev --prefix back-end\" \"npm run dev --prefix front-end\"",
+    "dev": "concurrently -n api,react -c green,yellow \"npm run dev --prefix back-end\" \"npm run dev --prefix front-end\"",
     "dev:backend": "npm run dev --prefix back-end",
     "dev:frontend": "npm run dev --prefix front-end",
-    "dev:wp": "npx wp-now start",
-    "build": "npm run build --prefix front-end",
-    "stop": "npx wp-now stop"
+        "build": "npm run build --prefix front-end",
+    "stop": "echo \"No stop needed — use Ctrl+C to stop dev servers\""
   },
   "devDependencies": {
-    "@wp-now/wp-now": "^0.1.74",
-    "concurrently": "^8.2.2"
+        "concurrently": "^8.2.2"
   }
 }

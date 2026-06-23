@@ -60,7 +60,6 @@ export default function CheckoutPage() {
     NU: 0.05, 'ON': 0.13, PE: 0.15, QC: 0.14975, SK: 0.11, YT: 0.05,
   };
   const taxRate = TAX_RATES[form.province?.toUpperCase()] || 0;
-  const taxAmount = subtotal * taxRate;
 
   useEffect(() => {
     if (returningFromPayPal) { setLoading(false); return; }

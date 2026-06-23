@@ -20,6 +20,9 @@ export default function AccountPage() {
   const [success, setSuccess] = useState('');
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [orderDetail, setOrderDetail] = useState(null);
+  const [orderDetailLoading, setOrderDetailLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -27,6 +30,20 @@ export default function AccountPage() {
       getOrders().then(setOrders).catch(() => {}).finally(() => setOrdersLoading(false));
     }
   }, [user]);
+
+  async function handleViewOrder(orderId) {
+    setSelectedOrder(orderId);
+    setOrderDetailLoading(true);
+    setOrderDetail(null);
+    try {
+      const detail = await getOrder(orderId);
+      setOrderDetail(detail);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setOrderDetailLoading(false);
+    }
+  }
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -49,6 +66,35 @@ export default function AccountPage() {
       addToast('Account created! Check your email.', 'success');
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  async function handleForgotPassword(e) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    try {
+      await resetPassword(email);
+      setSuccess('Password reset link sent! Check your email.');
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function handleUpdatePassword(e) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+    try {
+      await updatePassword(newPassword);
+      setSuccess('Password updated successfully!');
+      setNewPassword('');
+    } catch (e) {
+      setError(e.message);
     }
   }
 
