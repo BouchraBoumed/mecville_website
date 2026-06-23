@@ -5,13 +5,39 @@ import { supabase } from '../config/supabase.js';
 import { createPaymentIntent } from '../services/stripe.js';
 import { createOrder as createPayPalOrder } from '../services/paypal.js';
 import { AppError } from '../utils/errors.js';
+import { calculateTax } from '../utils/tax.js';
+import crypto from 'crypto';
 
 const router = Router();
+
+/**
+ * Generate a deterministic idempotency key from the user's cart contents.
+ * This ensures that if the user double-clicks "Pay" or the network retries,
+ * the same key is produced and Stripe deduplicates the request.
+ * The key includes a 5-minute time window so a retry within 5 minutes
+ * hits the same key, but a new checkout attempt after 5 minutes gets a fresh one.
+ */
+function generateIdempotencyKey(userId, cartItems) {
+  const cartHash = cartItems
+    .map(ci => `${ci.products.id}:${ci.quantity}`)
+    .sort()
+    .join('|');
+  const timeWindow = Math.floor(Date.now() / (5 * 60 * 1000)); // 5-minute bucket
+  const raw = `${userId}:${cartHash}:${timeWindow}`;
+  return crypto.createHash('sha256').update(raw).digest('hex').slice(0, 36);
+}
 
 // POST /api/payments/stripe/create-intent
 router.post('/stripe/create-intent', requireAuth, paymentLimiter, async (req, res, next) => {
   try {
     const userId = req.user.id;
+    const { shipping_address, billing_address } = req.body;
+
+    // Basic address validation — shipping address is required
+    if (!shipping_address || !shipping_address.address || !shipping_address.city ||
+        !shipping_address.province || !shipping_address.postcode || !shipping_address.country) {
+      throw new AppError('Complete shipping address is required', 400, 'VALIDATION_ERROR');
+    }
 
     // Fetch cart items with product details
     const { data: cartItems, error: cartError } = await supabase
@@ -48,8 +74,8 @@ router.post('/stripe/create-intent', requireAuth, paymentLimiter, async (req, re
     });
 
     const shipping_cost = subtotal >= 100 ? 0 : 15;
-    const tax = 0;
-    const total = subtotal + shipping_cost + tax;
+    const taxInfo = calculateTax(subtotal, shipping_address.province);
+    const total = subtotal + shipping_cost + taxInfo.amount;
 
     // Get user profile for billing
     const { data: profile } = await supabase
@@ -58,7 +84,7 @@ router.post('/stripe/create-intent', requireAuth, paymentLimiter, async (req, re
       .eq('id', userId)
       .single();
 
-    // Create order in database
+    // Create order in database with real addresses + tax
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -66,13 +92,14 @@ router.post('/stripe/create-intent', requireAuth, paymentLimiter, async (req, re
         email: profile?.email || req.user.email,
         status: 'pending',
         payment_status: 'pending',
+        payment_method: 'stripe',
         subtotal,
         shipping_cost,
-        tax,
+        tax: taxInfo.amount,
         discount: 0,
         total,
-        billing_address: {},
-        shipping_address: {},
+        billing_address: billing_address || shipping_address,
+        shipping_address,
       })
       .select()
       .single();
@@ -87,12 +114,28 @@ router.post('/stripe/create-intent', requireAuth, paymentLimiter, async (req, re
 
     if (itemsError) throw itemsError;
 
-    // Create Stripe payment intent
-    const payment = await createPaymentIntent({
-      id: order.id,
-      total,
-      order_number: order.order_number,
-    });
+    // Reserve stock: decrement immediately so concurrent checkouts can't oversell.
+    // If the payment ultimately fails, the webhook/confirm handler will restore stock.
+    for (const item of items) {
+      const { error: stockError } = await supabase.rpc('decrement_stock', {
+        product_id: item.product_id,
+        qty: item.quantity,
+      });
+      if (stockError) {
+        // Insufficient stock — cancel the order and throw
+        await supabase.from('orders').delete().eq('id', order.id);
+        throw new AppError(`Insufficient stock for "${item.name}"`, 400, 'INSUFFICIENT_STOCK');
+      }
+    }
+
+    // Generate idempotency key from cart contents to prevent duplicate intents
+    const idempotencyKey = generateIdempotencyKey(userId, cartItems);
+
+    // Create Stripe payment intent with idempotency key
+    const payment = await createPaymentIntent(
+      { id: order.id, total, order_number: order.order_number },
+      idempotencyKey
+    );
 
     // Update order with payment ID
     await supabase
@@ -106,6 +149,8 @@ router.post('/stripe/create-intent', requireAuth, paymentLimiter, async (req, re
       orderId: order.id,
       orderNumber: order.order_number,
       total,
+      tax: taxInfo.amount,
+      taxLabel: taxInfo.label,
     });
   } catch (err) {
     next(err);
@@ -135,18 +180,8 @@ router.post('/stripe/confirm', requireAuth, async (req, res, next) => {
         .single();
 
       if (order) {
-        const { data: orderItems } = await supabase
-          .from('order_items')
-          .select('product_id, quantity, name, total')
-          .eq('order_id', order.id);
-
-        for (const item of orderItems || []) {
-          await supabase.rpc('decrement_stock', {
-            product_id: item.product_id,
-            qty: item.quantity,
-          });
-        }
-
+        // Stock was already reserved at intent creation — no decrement needed here.
+        // Clear the user's cart since the payment succeeded.
         await supabase
           .from('cart_items')
           .delete()
@@ -154,6 +189,10 @@ router.post('/stripe/confirm', requireAuth, async (req, res, next) => {
 
         try {
           const { sendOrderConfirmation } = await import('../services/email.js');
+          const { data: orderItems } = await supabase
+            .from('order_items')
+            .select('product_id, quantity, name, total')
+            .eq('order_id', order.id);
           await sendOrderConfirmation({
             ...order,
             items: orderItems || [],
@@ -166,16 +205,60 @@ router.post('/stripe/confirm', requireAuth, async (req, res, next) => {
       return res.json({ success: true, order });
     }
 
+    // Payment did not succeed — restore the reserved stock
+    if (intent.status === 'canceled' || intent.status === 'requires_payment_method') {
+      await restoreStockForOrder(paymentId);
+    }
+
     res.json({ success: false, status: intent.status });
   } catch (err) {
     next(err);
   }
 });
 
+/**
+ * Restore stock for an order whose payment failed or was cancelled.
+ * Looks up order items by payment_id and increments stock back.
+ */
+async function restoreStockForOrder(paymentId) {
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('payment_id', paymentId)
+    .maybeSingle();
+
+  if (!order) return;
+
+  const { data: items } = await supabase
+    .from('order_items')
+    .select('product_id, quantity')
+    .eq('order_id', order.id);
+
+  for (const item of items || []) {
+    await supabase.rpc('increment_stock', {
+      product_id: item.product_id,
+      qty: item.quantity,
+    });
+  }
+
+  // Mark order as cancelled
+  await supabase
+    .from('orders')
+    .update({ status: 'cancelled', payment_status: 'failed' })
+    .eq('id', order.id);
+}
+
 // POST /api/payments/paypal/create-order
 router.post('/paypal/create-order', requireAuth, paymentLimiter, async (req, res, next) => {
   try {
     const userId = req.user.id;
+    const { shipping_address, billing_address } = req.body;
+
+    // Basic address validation
+    if (!shipping_address || !shipping_address.address || !shipping_address.city ||
+        !shipping_address.province || !shipping_address.postcode || !shipping_address.country) {
+      throw new AppError('Complete shipping address is required', 400, 'VALIDATION_ERROR');
+    }
 
     const { data: cartItems, error: cartError } = await supabase
       .from('cart_items')
@@ -208,7 +291,8 @@ router.post('/paypal/create-order', requireAuth, paymentLimiter, async (req, res
     });
 
     const shipping_cost = subtotal >= 100 ? 0 : 15;
-    const total = subtotal + shipping_cost;
+    const taxInfo = calculateTax(subtotal, shipping_address.province);
+    const total = subtotal + shipping_cost + taxInfo.amount;
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -216,7 +300,7 @@ router.post('/paypal/create-order', requireAuth, paymentLimiter, async (req, res
       .eq('id', userId)
       .single();
 
-    // Create order in DB
+    // Create order in DB with real addresses + tax
     const { data: order } = await supabase
       .from('orders')
       .insert({
@@ -227,11 +311,11 @@ router.post('/paypal/create-order', requireAuth, paymentLimiter, async (req, res
         payment_method: 'paypal',
         subtotal,
         shipping_cost,
-        tax: 0,
+        tax: taxInfo.amount,
         discount: 0,
         total,
-        billing_address: {},
-        shipping_address: {},
+        billing_address: billing_address || shipping_address,
+        shipping_address,
       })
       .select()
       .single();
@@ -239,12 +323,26 @@ router.post('/paypal/create-order', requireAuth, paymentLimiter, async (req, res
     const orderItems = items.map(item => ({ ...item, order_id: order.id }));
     await supabase.from('order_items').insert(orderItems);
 
+    // Reserve stock: decrement immediately so concurrent checkouts can't oversell.
+    // If the PayPal payment ultimately fails, the webhook handler will restore stock.
+    for (const item of items) {
+      const { error: stockError } = await supabase.rpc('decrement_stock', {
+        product_id: item.product_id,
+        qty: item.quantity,
+      });
+      if (stockError) {
+        await supabase.from('orders').delete().eq('id', order.id);
+        throw new AppError(`Insufficient stock for "${item.name}"`, 400, 'INSUFFICIENT_STOCK');
+      }
+    }
+
     // Create PayPal order
     const paypalOrder = await createPayPalOrder({
       ...order,
       items,
       subtotal,
       shipping_cost,
+      tax: taxInfo.amount,
       total,
     });
 
@@ -292,22 +390,16 @@ router.post('/paypal/capture', requireAuth, async (req, res, next) => {
         .single();
 
       if (order) {
-        const { data: items } = await supabase
-          .from('order_items')
-          .select('product_id, quantity, name, total')
-          .eq('order_id', order.id);
-
-        for (const item of items || []) {
-          await supabase.rpc('decrement_stock', {
-            product_id: item.product_id,
-            qty: item.quantity,
-          });
-        }
-
+        // Stock was already reserved at order creation — no decrement needed here.
+        // Clear the user's cart since the payment succeeded.
         await supabase.from('cart_items').delete().eq('user_id', req.user.id);
 
         try {
           const { sendOrderConfirmation } = await import('../services/email.js');
+          const { data: items } = await supabase
+            .from('order_items')
+            .select('product_id, quantity, name, total')
+            .eq('order_id', order.id);
           await sendOrderConfirmation({
             ...order,
             items: items || [],
@@ -320,10 +412,48 @@ router.post('/paypal/capture', requireAuth, async (req, res, next) => {
       return res.json({ success: true, order });
     }
 
+    // PayPal payment did not complete — restore reserved stock
+    await restoreStockForPayPalOrder(paypalOrderId, req.user.id);
+
     res.json({ success: false, status: capture.status });
   } catch (err) {
     next(err);
   }
 });
+
+/**
+ * Restore stock for a PayPal order whose capture failed.
+ */
+async function restoreStockForPayPalOrder(paypalOrderId, userId) {
+  // Find the order by the pending PayPal order reference
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('payment_method', 'paypal')
+    .eq('payment_status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!order) return;
+
+  const { data: items } = await supabase
+    .from('order_items')
+    .select('product_id, quantity')
+    .eq('order_id', order.id);
+
+  for (const item of items || []) {
+    await supabase.rpc('increment_stock', {
+      product_id: item.product_id,
+      qty: item.quantity,
+    });
+  }
+
+  await supabase
+    .from('orders')
+    .update({ status: 'cancelled', payment_status: 'failed' })
+    .eq('id', order.id);
+}
 
 export default router;

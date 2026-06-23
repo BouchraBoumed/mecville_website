@@ -2,24 +2,12 @@ import { Router } from 'express';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { supabase } from '../config/supabase.js';
+import { validateProduct, validateOrderUpdate } from '../utils/validate-product.js';
+import { AppError } from '../utils/errors.js';
 
 const router = Router();
 
 router.use(requireAuth, requireAdmin, apiLimiter);
-
-const ALLOWED_PRODUCT_FIELDS = [
-  'name', 'slug', 'description', 'short_description', 'price',
-  'compare_price', 'sku', 'stock', 'stock_alert', 'category_id',
-  'images', 'attributes', 'featured', 'active',
-];
-
-function pickAllowed(obj, allowed) {
-  const result = {};
-  for (const key of allowed) {
-    if (key in obj) result[key] = obj[key];
-  }
-  return result;
-}
 
 router.get('/stats', async (req, res, next) => {
   try {
@@ -102,11 +90,7 @@ router.get('/orders', async (req, res, next) => {
 router.patch('/orders/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, tracking_number } = req.body;
-
-    const update = {};
-    if (status) update.status = status;
-    if (tracking_number !== undefined) update.tracking_number = tracking_number;
+    const update = validateOrderUpdate(req.body);
 
     const { data, error } = await supabase
       .from('orders')
@@ -156,10 +140,7 @@ router.get('/products', async (req, res, next) => {
 // POST /api/admin/products — Create product
 router.post('/products', async (req, res, next) => {
   try {
-    const product = pickAllowed(req.body, ALLOWED_PRODUCT_FIELDS);
-    if (!product.name || !product.slug) {
-      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'name and slug are required' } });
-    }
+    const product = validateProduct(req.body, true);
     const { data, error } = await supabase
       .from('products')
       .insert(product)
@@ -177,11 +158,7 @@ router.post('/products', async (req, res, next) => {
 router.patch('/products/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const updates = pickAllowed(req.body, ALLOWED_PRODUCT_FIELDS);
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'No valid fields to update' } });
-    }
+    const updates = validateProduct(req.body, false);
 
     const { data, error } = await supabase
       .from('products')
@@ -344,6 +321,10 @@ router.patch('/reviews/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
     const { active } = req.body;
+
+    if (typeof active !== 'boolean') {
+      throw new AppError('active must be a boolean', 400, 'VALIDATION_ERROR');
+    }
 
     const { data, error } = await supabase
       .from('reviews')

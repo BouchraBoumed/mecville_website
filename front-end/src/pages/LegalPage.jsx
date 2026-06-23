@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { sanitizeHtml } from '../lib/sanitize';
 
 const content = {
   privacy: {
@@ -70,7 +71,7 @@ export default function LegalPage({ page }) {
         </nav>
         <article className="page-content">
           <h1 className="page-title">{data.title}</h1>
-          <div className="entry-content" dangerouslySetInnerHTML={{ __html: data.body }} />
+          <div className="entry-content" dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.body) }} />
         </article>
       </div>
     </main>

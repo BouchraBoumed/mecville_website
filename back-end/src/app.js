@@ -13,6 +13,12 @@ dotenv.config();
 
 export function createApp() {
   const app = express();
+
+  // Trust the first proxy hop — required when behind nginx/reverse proxy
+  // so req.ip, req.protocol, and rate limiting work correctly in production.
+  // In development (no proxy) this is harmless.
+  app.set('trust proxy', 1);
+
   const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 
   app.use(helmet({
@@ -37,7 +43,17 @@ export function createApp() {
     maxAge: 86400,
   }));
 
+  // Stripe webhook needs the raw body for signature verification
   app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));
+
+  // PayPal webhook needs the raw body string for signature verification.
+  // We capture it via a verify hook so req.rawBody is available in the route.
+  app.use('/api/webhooks/paypal', express.json({
+    limit: '10kb',
+    verify: (req, res, buf) => { req.rawBody = buf.toString('utf8'); },
+  }));
+
+  // All other routes use standard JSON parsing
   app.use(express.json({ limit: '10kb' }));
   app.use(express.urlencoded({ extended: false }));
 

@@ -5,6 +5,7 @@ import { useToast } from '../components/Toast';
 import { getProductBySlug, getProducts, addToCart, getReviews, createReview } from '../api/data';
 import { useAuth } from '../contexts/AuthContext';
 import ProductCard from '../components/ProductCard';
+import { sanitizeHtml } from '../lib/sanitize';
 
 export default function ProductPage() {
   const { slug } = useParams();
@@ -119,7 +120,7 @@ export default function ProductPage() {
               )}
             </div>
             {product.short_description && (
-              <div className="product-excerpt" dangerouslySetInnerHTML={{ __html: product.short_description }} />
+              <div className="product-excerpt" dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.short_description) }} />
             )}
 
             {inStock && (
@@ -163,7 +164,7 @@ export default function ProductPage() {
         </div>
 
         {product.description && (
-          <div className="product-description" dangerouslySetInnerHTML={{ __html: product.description }} />
+          <div className="product-description" dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }} />
         )}
 
         <div className="reviews-section">

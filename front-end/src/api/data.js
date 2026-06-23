@@ -74,7 +74,16 @@ export async function getFeaturedProducts() {
 }
 
 // ── Cart ────────────────────────────────────────────────────
+
+// Get the current user's ID from the Supabase session
+async function getCurrentUserId() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id) throw new Error('You must be logged in to manage your cart');
+  return session.user.id;
+}
+
 export async function getCart() {
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('cart_items')
     .select(`
@@ -84,7 +93,8 @@ export async function getCart() {
       products!inner (
         id, name, slug, price, stock, images, active
       )
-    `);
+    `)
+    .eq('user_id', userId);
   if (error) throw error;
 
   // Transform to match cart-like structure
@@ -113,10 +123,13 @@ export async function getCart() {
 }
 
 export async function addToCart(productId, quantity = 1) {
-  // Check if already in cart
+  const userId = await getCurrentUserId();
+
+  // Check if already in cart (scoped to this user)
   const { data: existing } = await supabase
     .from('cart_items')
     .select('id, quantity')
+    .eq('user_id', userId)
     .eq('product_id', productId)
     .maybeSingle();
 
@@ -124,12 +137,13 @@ export async function addToCart(productId, quantity = 1) {
     const { error } = await supabase
       .from('cart_items')
       .update({ quantity: existing.quantity + quantity })
-      .eq('id', existing.id);
+      .eq('id', existing.id)
+      .eq('user_id', userId);
     if (error) throw error;
   } else {
     const { error } = await supabase
       .from('cart_items')
-      .insert({ product_id: productId, quantity });
+      .insert({ user_id: userId, product_id: productId, quantity });
     if (error) throw error;
   }
 
@@ -137,19 +151,23 @@ export async function addToCart(productId, quantity = 1) {
 }
 
 export async function updateCartItem(itemId, quantity) {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from('cart_items')
     .update({ quantity })
-    .eq('id', itemId);
+    .eq('id', itemId)
+    .eq('user_id', userId);
   if (error) throw error;
   return getCart();
 }
 
 export async function removeCartItem(itemId) {
+  const userId = await getCurrentUserId();
   const { error } = await supabase
     .from('cart_items')
     .delete()
-    .eq('id', itemId);
+    .eq('id', itemId)
+    .eq('user_id', userId);
   if (error) throw error;
   return getCart();
 }

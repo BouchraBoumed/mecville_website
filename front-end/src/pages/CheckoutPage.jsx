@@ -39,6 +39,29 @@ export default function CheckoutPage() {
 
   const returningFromPayPal = sessionStorage.getItem('paypal_order_id') && window.location.pathname === '/order/confirm';
 
+  // Build structured address object from form state for the backend
+  function buildAddress() {
+    return {
+      first_name: form.first_name,
+      last_name: form.last_name,
+      email: form.email,
+      phone: form.phone || null,
+      address: form.address,
+      city: form.city,
+      province: form.province,
+      postcode: form.postcode,
+      country: form.country,
+    };
+  }
+
+  // Canadian tax rates by province (must match backend utils/tax.js)
+  const TAX_RATES = {
+    AB: 0.05, BC: 0.12, MB: 0.12, NB: 0.15, NL: 0.15, NS: 0.15, NT: 0.05,
+    NU: 0.05, 'ON': 0.13, PE: 0.15, QC: 0.14975, SK: 0.11, YT: 0.05,
+  };
+  const taxRate = TAX_RATES[form.province?.toUpperCase()] || 0;
+  const taxAmount = subtotal * taxRate;
+
   useEffect(() => {
     if (returningFromPayPal) { setLoading(false); return; }
     getCart().then(c => { setCart(c); setLoading(false); }).catch(() => setLoading(false));
@@ -60,7 +83,8 @@ export default function CheckoutPage() {
       return;
     }
 
-    const { clientSecret, orderNumber: onum } = await createStripePaymentIntent();
+    const address = buildAddress();
+    const { clientSecret, orderNumber: onum } = await createStripePaymentIntent(address, address);
     setOrderNumber(onum);
 
     const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
@@ -97,9 +121,11 @@ export default function CheckoutPage() {
 
   async function handlePayPalCheckout() {
     setError('');
-    const { paypalOrderId, approvalUrl } = await createPayPalOrder();
+    const address = buildAddress();
+    const { paypalOrderId, approvalUrl } = await createPayPalOrder(address, address);
     if (approvalUrl) {
       sessionStorage.setItem('paypal_order_id', paypalOrderId);
+      sessionStorage.setItem('paypal_shipping_address', JSON.stringify(address));
       window.location.href = approvalUrl;
     } else {
       setError('PayPal is not available');
@@ -157,7 +183,8 @@ export default function CheckoutPage() {
 
   const subtotal = cart.items.reduce((s, i) => s + i.price * i.quantity, 0);
   const shipping = subtotal >= 100 ? 0 : 15;
-  const total = subtotal + shipping;
+  const taxAmountCalc = subtotal * taxRate;
+  const total = subtotal + shipping + taxAmountCalc;
 
   return (
     <main className="content-area">
@@ -197,7 +224,22 @@ export default function CheckoutPage() {
                 </div>
                 <div className="form-row">
                   <label htmlFor="billing-province">Province *</label>
-                  <input id="billing-province" name="province" value={form.province} onChange={handleChange} required />
+                  <select id="billing-province" name="province" value={form.province} onChange={handleChange} required>
+                    <option value="">Select...</option>
+                    <option value="AB">Alberta</option>
+                    <option value="BC">British Columbia</option>
+                    <option value="MB">Manitoba</option>
+                    <option value="NB">New Brunswick</option>
+                    <option value="NL">Newfoundland and Labrador</option>
+                    <option value="NS">Nova Scotia</option>
+                    <option value="NT">Northwest Territories</option>
+                    <option value="NU">Nunavut</option>
+                    <option value="ON">Ontario</option>
+                    <option value="PE">Prince Edward Island</option>
+                    <option value="QC">Quebec</option>
+                    <option value="SK">Saskatchewan</option>
+                    <option value="YT">Yukon</option>
+                  </select>
                 </div>
                 <div className="form-row">
                   <label htmlFor="billing-postcode">Postcode *</label>
@@ -261,9 +303,12 @@ export default function CheckoutPage() {
                 </div>
               ))}
               <div className="checkout-mini-totals">
-                <div className="mini-total-row"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+                <div className="mini-total-row"><span>Subtotal</span><span>$${subtotal.toFixed(2)}</span></div>
                 <div className="mini-total-row"><span>Shipping</span><span>{shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}</span></div>
-                <div className="mini-total-row total"><span>Total</span><span>${total.toFixed(2)}</span></div>
+                {taxRate > 0 && (
+                  <div className="mini-total-row"><span>Tax ({(taxRate * 100).toFixed(2)}%)</span><span>$${taxAmountCalc.toFixed(2)}</span></div>
+                )}
+                <div className="mini-total-row total"><span>Total</span><span>$${total.toFixed(2)}</span></div>
               </div>
             </div>
           </div>
