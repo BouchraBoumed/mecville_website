@@ -5,7 +5,7 @@ const site = {
   title: 'Mecville - Pokémon TCG Store',
   description: 'Premium Pokémon TCG singles, sealed products, graded cards, and bundles. Serving collectors across Canada with free shipping over $100 CAD.',
   url: 'https://mecville.com',
-  image: '/logo.svg',
+  image: '/logo.webp',
 };
 
 export default function Seo({ title, description, image, url }) {

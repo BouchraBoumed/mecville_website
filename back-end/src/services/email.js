@@ -113,3 +113,43 @@ export async function sendOrderConfirmation(order) {
     `,
   });
 }
+
+
+export async function sendOrderStatusUpdate(order, newStatus) {
+  const mailer = getTransporter();
+
+  const statusMessages = {
+    pending: 'Your order has been received and is awaiting processing.',
+    processing: 'Your order is now being processed and prepared for shipment.',
+    shipped: `Your order has been shipped!${order.tracking_number ? ` Tracking number: ${escapeHtml(order.tracking_number)}` : ''}`,
+    delivered: 'Your order has been delivered. Enjoy your cards!',
+    cancelled: 'Your order has been cancelled. If you have questions, please contact support.',
+    refunded: 'A refund has been processed for your order. Please allow 5-7 business days for the refund to appear.',
+  };
+
+  const message = statusMessages[newStatus] || `Your order status has been updated to: ${escapeHtml(newStatus)}.`;
+
+  await mailer.sendMail({
+    from: `"Mecville" <${process.env.SMTP_USER || 'noreply@mecville.com'}>`,
+    to: order.email,
+    subject: `Order Update — ${escapeHtml(order.order_number)} — ${escapeHtml(newStatus.charAt(0).toUpperCase() + newStatus.slice(1))}`,
+    html: `
+      <div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;">
+        <div style="background:#1a1a2e;color:#d4a84b;padding:20px;text-align:center;">
+          <h1>Mecville</h1>
+          <h2>Order Status Update</h2>
+        </div>
+        <div style="padding:20px;">
+          <p>Hi ${escapeHtml(order.shipping_address?.first_name || 'Customer')},</p>
+          <p>${message}</p>
+          <p><strong>Order Number:</strong> ${escapeHtml(order.order_number)}</p>
+          <p><strong>Current Status:</strong> ${escapeHtml(newStatus)}</p>
+          ${order.tracking_number ? `<p><strong>Tracking Number:</strong> ${escapeHtml(order.tracking_number)}</p>` : ''}
+          <div style="margin-top:30px;padding-top:20px;border-top:1px solid #eee;color:#666;font-size:12px;">
+            If you have any questions, contact us at support@mecville.com
+          </div>
+        </div>
+      </div>
+    `,
+  });
+}

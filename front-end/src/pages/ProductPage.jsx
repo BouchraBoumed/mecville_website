@@ -6,6 +6,7 @@ import { getProductBySlug, getProducts, addToCart, getReviews, createReview } fr
 import { useAuth } from '../contexts/AuthContext';
 import ProductCard from '../components/ProductCard';
 import { sanitizeHtml } from '../lib/sanitize';
+import { Helmet } from 'react-helmet-async';
 
 export default function ProductPage() {
   const { slug } = useParams();
@@ -75,6 +76,34 @@ export default function ProductPage() {
         image={allImages[0]?.src}
         url={`/product/${product.slug}`}
       />
+      <Helmet>
+        <script type="application/ld+json">
+          {JSON.stringify({
+            '@context': 'https://schema.org/',
+            '@type': 'Product',
+            name: product.name,
+            description: product.short_description?.replace(/<[^>]*>/g, '') || product.name,
+            sku: product.sku || undefined,
+            image: allImages.map(img => img.src).filter(Boolean),
+            brand: { '@type': 'Brand', name: 'Mecville' },
+            offers: {
+              '@type': 'Offer',
+              price: price.toFixed(2),
+              priceCurrency: 'CAD',
+              availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+              url: `${window.location.origin}/product/${product.slug}`,
+              seller: { '@type': 'Organization', name: 'Mecville' },
+            },
+            ...(reviews.length > 0 ? {
+              aggregateRating: {
+                '@type': 'AggregateRating',
+                ratingValue: (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1),
+                reviewCount: reviews.length,
+              },
+            } : {}),
+          })}
+        </script>
+      </Helmet>
       <div className="container">
         <nav className="woocommerce-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Home</Link> / <Link to="/shop">Shop</Link> / <span>{product.name}</span>

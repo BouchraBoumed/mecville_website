@@ -102,6 +102,14 @@ router.patch('/orders/:id', async (req, res, next) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Order not found' } });
 
+    // Send email notification to the customer about the status change
+    if (update.status) {
+      try {
+        const { sendOrderStatusUpdate } = await import('../services/email.js');
+        await sendOrderStatusUpdate(data, update.status);
+      } catch { /* email failure is non-critical */ }
+    }
+
     res.json(data);
   } catch (err) {
     next(err);

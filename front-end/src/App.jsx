@@ -12,9 +12,11 @@ import GalleryPage from './pages/GalleryPage';
 import ContactPage from './pages/ContactPage';
 import LegalPage from './pages/LegalPage';
 import NotFoundPage from './pages/NotFoundPage';
+import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <div className="site">
       <Header />
       <div className="site-content">
@@ -39,5 +41,6 @@ export default function App() {
       </div>
       <Footer />
     </div>
+    </ErrorBoundary>
   );
 }
