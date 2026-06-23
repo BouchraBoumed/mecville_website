@@ -171,7 +171,7 @@ p { margin-bottom: 1rem; color: var(--color-text-secondary); }
 
 .page-intro { margin-bottom: 32px; }
 .page-intro h1 { font-size: 2.5rem; margin-bottom: 16px; }
-.page-intro p { max-width: 760px; color: var(--color-text-secondary); line-height: 1.8; }
+.page-intro p { max-width: 760px; color: var(--color-text); opacity: 0.85; line-height: 1.8; }
 
 .page-content {
   overflow-wrap: break-word; padding: 40px 0; max-width: 800px; }
@@ -200,16 +200,44 @@ p { margin-bottom: 1rem; color: var(--color-text-secondary); }
 
 /* ── Contact ──────────────────────────────────────────────── */
 
-.contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+.contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
 .contact-card, .contact-form { background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 28px; }
 .contact-card h2, .contact-form h2 { margin-bottom: 18px; }
 .contact-card p { color: var(--color-text-secondary); line-height: 1.8; margin-bottom: 12px; }
 .contact-card a { color: var(--color-accent); text-decoration: none; }
 .contact-form form { display: grid; gap: 18px; }
 .contact-form input, .contact-form textarea { width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text); padding: 12px 14px; font-family: var(--font-primary); font-size: 14px; transition: border-color var(--transition); }
-.contact-form input:focus, .contact-form textarea:focus { border-color: var(--color-accent); }
+.contact-form input:focus, .contact-form textarea:focus { border-color: var(--color-accent); outline: none; box-shadow: 0 0 0 3px var(--color-accent-glow); }
+
+/* ── Global form focus ring ────────────────────────────────── */
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-glow);
+}
+
+/* Also apply to form-row inputs (checkout page) */
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-glow);
+}
+
+/* Review form focus */
+.review-form select:focus, .review-form input:focus, .review-form textarea:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-glow);
+}
+
+/* Account page auth inputs */
+.auth-tab:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
 .contact-form textarea { min-height: 180px; resize: vertical; }
 .contact-form button { width: fit-content; }
+.contact-card .social-link:hover { border-color: var(--color-accent); color: var(--color-accent); background: var(--color-accent-glow); }
 
 /* ── Header ───────────────────────────────────────────────── */
 
@@ -401,6 +429,53 @@ p { margin-bottom: 1rem; color: var(--color-text-secondary); }
   font-family: var(--font-primary); transition: border-color var(--transition);
 }
 .shop-sidebar input[type="text"]:focus { border-color: var(--color-accent); }
+
+/* ── Search bar ────────────────────────────────────────────── */
+
+.shop-search-form { display: flex; gap: 8px; align-items: stretch; }
+.shop-search-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-primary);
+  font-size: 14px;
+  transition: border-color var(--transition);
+}
+.shop-search-form input:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-glow);
+}
+.shop-search-form input::placeholder { color: var(--color-text-muted); opacity: 0.7; }
+
+.shop-search-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.shop-search-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-glow);
+}
+.shop-search-btn:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-glow);
+}
 
 .shop-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; margin-bottom: 20px; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; gap: 12px; }
 .woocommerce-result-count { font-size: 14px; color: var(--color-text-muted); }
