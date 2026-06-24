@@ -138,25 +138,41 @@ const VALID_ADDRESS = {
 
 const AUTH_HEADER = { Authorization: 'Bearer test-token' };
 
-describe('Payment Routes — Auth Required', () => {
-  it('POST /api/payments/stripe/create-intent requires auth', async () => {
+describe('Payment Routes — Guest Access (optional auth)', () => {
+  it('POST /api/payments/stripe/create-intent returns 400 without body (guest)', async () => {
     const res = await request.post('/api/payments/stripe/create-intent').send({});
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
   });
 
-  it('POST /api/payments/stripe/confirm requires auth', async () => {
+  it('POST /api/payments/stripe/confirm returns 400 without paymentId (guest)', async () => {
     const res = await request.post('/api/payments/stripe/confirm').send({});
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
   });
 
-  it('POST /api/payments/paypal/create-order requires auth', async () => {
+  it('POST /api/payments/paypal/create-order returns 400 without body (guest)', async () => {
     const res = await request.post('/api/payments/paypal/create-order').send({});
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
   });
 
-  it('POST /api/payments/paypal/capture requires auth', async () => {
+  it('POST /api/payments/paypal/capture returns 400 without paypalOrderId (guest)', async () => {
     const res = await request.post('/api/payments/paypal/capture').send({});
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /api/payments/stripe/create-intent returns 400 for guest with address but no items', async () => {
+    const res = await request
+      .post('/api/payments/stripe/create-intent')
+      .send({ shipping_address: VALID_ADDRESS });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('EMPTY_CART');
+  });
+
+  it('POST /api/payments/stripe/create-intent returns 400 for guest without email', async () => {
+    const res = await request
+      .post('/api/payments/stripe/create-intent')
+      .send({ shipping_address: { ...VALID_ADDRESS, email: '' }, items: [{ product_id: 1, quantity: 1 }] });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 });
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth.js';
+import { optionalAuth } from '../middleware/auth.js';
 import { paymentLimiter } from '../middleware/rateLimiter.js';
 import { supabase } from '../config/supabase.js';
 import { createPaymentIntent } from '../services/stripe.js';
@@ -17,29 +17,26 @@ const router = Router();
  * The key includes a 5-minute time window so a retry within 5 minutes
  * hits the same key, but a new checkout attempt after 5 minutes gets a fresh one.
  */
-function generateIdempotencyKey(userId, cartItems) {
+function generateIdempotencyKey(userKey, cartItems) {
   const cartHash = cartItems
-    .map(ci => `${ci.products.id}:${ci.quantity}`)
+    .map(ci => `${ci.product_id || ci.products?.id}:${ci.quantity}`)
     .sort()
     .join('|');
   const timeWindow = Math.floor(Date.now() / (5 * 60 * 1000)); // 5-minute bucket
-  const raw = `${userId}:${cartHash}:${timeWindow}`;
+  const raw = `${userKey}:${cartHash}:${timeWindow}`;
   return crypto.createHash('sha256').update(raw).digest('hex').slice(0, 36);
 }
 
-// POST /api/payments/stripe/create-intent
-router.post('/stripe/create-intent', requireAuth, paymentLimiter, async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const { shipping_address, billing_address } = req.body;
+/**
+ * Resolve the cart items for an order.
+ * - Authenticated users: read from the cart_items table.
+ * - Guest users: use the items array provided in the request body.
+ * Returns a normalized array of { product_id, name, price, quantity, total, image_url }.
+ */
+async function resolveCartItems(req) {
+  const userId = req.user?.id || null;
 
-    // Basic address validation — shipping address is required
-    if (!shipping_address || !shipping_address.address || !shipping_address.city ||
-        !shipping_address.province || !shipping_address.postcode || !shipping_address.country) {
-      throw new AppError('Complete shipping address is required', 400, 'VALIDATION_ERROR');
-    }
-
-    // Fetch cart items with product details
+  if (userId) {
     const { data: cartItems, error: cartError } = await supabase
       .from('cart_items')
       .select(`
@@ -55,41 +52,94 @@ router.post('/stripe/create-intent', requireAuth, paymentLimiter, async (req, re
       throw new AppError('Cart is empty', 400, 'EMPTY_CART');
     }
 
-    // Calculate totals
-    let subtotal = 0;
-    const items = cartItems.map(ci => {
+    return cartItems.map(ci => {
       const p = ci.products;
-      if (!p.active) throw new AppError(`Product "${p.name}" is no longer available`, 400);
-      if (p.stock < ci.quantity) throw new AppError(`Insufficient stock for "${p.name}"`, 400);
-      const total = Number(p.price) * ci.quantity;
-      subtotal += total;
       return {
         product_id: p.id,
         name: p.name,
         price: Number(p.price),
         quantity: ci.quantity,
-        total,
+        total: Number(p.price) * ci.quantity,
         image_url: p.images?.[0]?.src || null,
       };
     });
+  }
+
+  // Guest checkout — items must be provided in the request body.
+  const guestItems = req.body.items;
+  if (!Array.isArray(guestItems) || !guestItems.length) {
+    throw new AppError('Cart is empty', 400, 'EMPTY_CART');
+  }
+
+  // Validate each guest cart item against the current product state.
+  const items = [];
+  for (const gi of guestItems) {
+    const { data: p, error } = await supabase
+      .from('products')
+      .select('id, name, price, stock, active, images')
+      .eq('id', gi.product_id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!p) throw new AppError(`Product not found (id: ${gi.product_id})`, 400);
+    if (!p.active) throw new AppError(`Product "${p.name}" is no longer available`, 400);
+    if (p.stock < gi.quantity) throw new AppError(`Insufficient stock for "${p.name}"`, 400);
+    items.push({
+      product_id: p.id,
+      name: p.name,
+      price: Number(p.price),
+      quantity: gi.quantity,
+      total: Number(p.price) * gi.quantity,
+      image_url: p.images?.[0]?.src || null,
+    });
+  }
+  return items;
+}
+
+// POST /api/payments/stripe/create-intent
+router.post('/stripe/create-intent', optionalAuth, paymentLimiter, async (req, res, next) => {
+  try {
+    const userId = req.user?.id || null;
+    const { shipping_address, billing_address } = req.body;
+
+    // Basic address validation — shipping address is required
+    if (!shipping_address || !shipping_address.address || !shipping_address.city ||
+        !shipping_address.province || !shipping_address.postcode || !shipping_address.country) {
+      throw new AppError('Complete shipping address is required', 400, 'VALIDATION_ERROR');
+    }
+    // Guest checkout requires an email on the shipping address.
+    if (!userId && !shipping_address.email) {
+      throw new AppError('Email is required for guest checkout', 400, 'VALIDATION_ERROR');
+    }
+
+    const items = await resolveCartItems(req);
+
+    // Calculate totals
+    let subtotal = 0;
+    for (const item of items) {
+      subtotal += item.total;
+    }
 
     const shipping_cost = subtotal >= 100 ? 0 : 15;
     const taxInfo = calculateTax(subtotal, shipping_address.province);
     const total = subtotal + shipping_cost + taxInfo.amount;
 
-    // Get user profile for billing
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('email, first_name, last_name')
-      .eq('id', userId)
-      .single();
+    // Get user profile for billing (authenticated users); guests use form email.
+    let orderEmail = shipping_address.email;
+    if (userId) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, first_name, last_name')
+        .eq('id', userId)
+        .single();
+      orderEmail = profile?.email || req.user.email || shipping_address.email;
+    }
 
     // Create order in database with real addresses + tax
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
         user_id: userId,
-        email: profile?.email || req.user.email,
+        email: orderEmail,
         status: 'pending',
         payment_status: 'pending',
         payment_method: 'stripe',
@@ -129,7 +179,7 @@ router.post('/stripe/create-intent', requireAuth, paymentLimiter, async (req, re
     }
 
     // Generate idempotency key from cart contents to prevent duplicate intents
-    const idempotencyKey = generateIdempotencyKey(userId, cartItems);
+    const idempotencyKey = generateIdempotencyKey(userId || orderEmail, items);
 
     // Create Stripe payment intent with idempotency key
     const payment = await createPaymentIntent(
@@ -158,16 +208,17 @@ router.post('/stripe/create-intent', requireAuth, paymentLimiter, async (req, re
 });
 
 // POST /api/payments/stripe/confirm
-router.post('/stripe/confirm', requireAuth, async (req, res, next) => {
+router.post('/stripe/confirm', optionalAuth, async (req, res, next) => {
   try {
     const { paymentId } = req.body;
     if (!paymentId) throw new AppError('paymentId is required', 400);
-    const userId = req.user.id;
+    const userId = req.user?.id || null;
 
     const { confirmPayment } = await import('../services/stripe.js');
     const intent = await confirmPayment(paymentId);
 
     if (intent.status === 'succeeded') {
+      // Use service_role client — guests have no user_id to filter on.
       const { data: order } = await supabase
         .from('orders')
         .update({
@@ -175,17 +226,18 @@ router.post('/stripe/confirm', requireAuth, async (req, res, next) => {
           status: 'processing',
         })
         .eq('payment_id', paymentId)
-        .eq('user_id', userId)
         .select()
         .single();
 
       if (order) {
         // Stock was already reserved at intent creation — no decrement needed here.
-        // Clear the user's cart since the payment succeeded.
-        await supabase
-          .from('cart_items')
-          .delete()
-          .eq('user_id', req.user.id);
+        // Clear the user's cart if authenticated (guests have no server cart).
+        if (userId) {
+          await supabase
+            .from('cart_items')
+            .delete()
+            .eq('user_id', userId);
+        }
 
         try {
           const { sendOrderConfirmation } = await import('../services/email.js');
@@ -249,9 +301,9 @@ async function restoreStockForOrder(paymentId) {
 }
 
 // POST /api/payments/paypal/create-order
-router.post('/paypal/create-order', requireAuth, paymentLimiter, async (req, res, next) => {
+router.post('/paypal/create-order', optionalAuth, paymentLimiter, async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id || null;
     const { shipping_address, billing_address } = req.body;
 
     // Basic address validation
@@ -259,53 +311,37 @@ router.post('/paypal/create-order', requireAuth, paymentLimiter, async (req, res
         !shipping_address.province || !shipping_address.postcode || !shipping_address.country) {
       throw new AppError('Complete shipping address is required', 400, 'VALIDATION_ERROR');
     }
+    if (!userId && !shipping_address.email) {
+      throw new AppError('Email is required for guest checkout', 400, 'VALIDATION_ERROR');
+    }
 
-    const { data: cartItems, error: cartError } = await supabase
-      .from('cart_items')
-      .select(`
-        quantity,
-        products!inner (
-          id, name, price, stock, active, images
-        )
-      `)
-      .eq('user_id', userId);
-
-    if (cartError) throw cartError;
-    if (!cartItems?.length) throw new AppError('Cart is empty', 400, 'EMPTY_CART');
+    const items = await resolveCartItems(req);
 
     let subtotal = 0;
-    const items = cartItems.map(ci => {
-      const p = ci.products;
-      if (!p.active) throw new AppError(`Product "${p.name}" is no longer available`, 400);
-      if (p.stock < ci.quantity) throw new AppError(`Insufficient stock for "${p.name}"`, 400);
-      const total = Number(p.price) * ci.quantity;
-      subtotal += total;
-      return {
-        product_id: p.id,
-        name: p.name,
-        price: Number(p.price),
-        quantity: ci.quantity,
-        total,
-        image_url: p.images?.[0]?.src || null,
-      };
-    });
+    for (const item of items) {
+      subtotal += item.total;
+    }
 
     const shipping_cost = subtotal >= 100 ? 0 : 15;
     const taxInfo = calculateTax(subtotal, shipping_address.province);
     const total = subtotal + shipping_cost + taxInfo.amount;
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('email, first_name, last_name')
-      .eq('id', userId)
-      .single();
+    let orderEmail = shipping_address.email;
+    if (userId) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, first_name, last_name')
+        .eq('id', userId)
+        .single();
+      orderEmail = profile?.email || req.user.email || shipping_address.email;
+    }
 
     // Create order in DB with real addresses + tax
     const { data: order } = await supabase
       .from('orders')
       .insert({
         user_id: userId,
-        email: profile?.email || req.user.email,
+        email: orderEmail,
         status: 'pending',
         payment_status: 'pending',
         payment_method: 'paypal',
@@ -365,10 +401,11 @@ router.post('/paypal/create-order', requireAuth, paymentLimiter, async (req, res
 });
 
 // POST /api/payments/paypal/capture
-router.post('/paypal/capture', requireAuth, async (req, res, next) => {
+router.post('/paypal/capture', optionalAuth, async (req, res, next) => {
   try {
     const { paypalOrderId } = req.body;
     if (!paypalOrderId) throw new AppError('paypalOrderId is required', 400);
+    const userId = req.user?.id || null;
 
     const { captureOrder } = await import('../services/paypal.js');
     const capture = await captureOrder(paypalOrderId);
@@ -376,6 +413,7 @@ router.post('/paypal/capture', requireAuth, async (req, res, next) => {
     if (capture.status === 'COMPLETED') {
       const paypalPaymentId = capture.purchase_units?.[0]?.payments?.captures?.[0]?.id;
 
+      // Use service_role client — guests have no user_id to filter on.
       const { data: order } = await supabase
         .from('orders')
         .update({
@@ -383,16 +421,19 @@ router.post('/paypal/capture', requireAuth, async (req, res, next) => {
           status: 'processing',
           payment_id: paypalPaymentId,
         })
-        .eq('user_id', req.user.id)
         .eq('payment_method', 'paypal')
         .is('payment_id', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .select()
         .single();
 
       if (order) {
         // Stock was already reserved at order creation — no decrement needed here.
-        // Clear the user's cart since the payment succeeded.
-        await supabase.from('cart_items').delete().eq('user_id', req.user.id);
+        // Clear the user's cart if authenticated (guests have no server cart).
+        if (userId) {
+          await supabase.from('cart_items').delete().eq('user_id', userId);
+        }
 
         try {
           const { sendOrderConfirmation } = await import('../services/email.js');
@@ -413,7 +454,7 @@ router.post('/paypal/capture', requireAuth, async (req, res, next) => {
     }
 
     // PayPal payment did not complete — restore reserved stock
-    await restoreStockForPayPalOrder(paypalOrderId, req.user.id);
+    await restoreStockForPayPalOrder(paypalOrderId, userId);
 
     res.json({ success: false, status: capture.status });
   } catch (err) {
@@ -426,15 +467,19 @@ router.post('/paypal/capture', requireAuth, async (req, res, next) => {
  */
 async function restoreStockForPayPalOrder(paypalOrderId, userId) {
   // Find the order by the pending PayPal order reference
-  const { data: order } = await supabase
+  let query = supabase
     .from('orders')
     .select('id')
-    .eq('user_id', userId)
     .eq('payment_method', 'paypal')
     .eq('payment_status', 'pending')
     .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+
+  if (userId) {
+    query = query.eq('user_id', userId);
+  }
+
+  const { data: order } = await query.maybeSingle();
 
   if (!order) return;
 

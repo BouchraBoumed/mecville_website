@@ -1,26 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getCart, updateCartItem, removeCartItem } from '../api/data';
-import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
 
 export default function CartPage() {
-  const { user } = useAuth();
   const { addToast } = useToast();
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pendingQty, setPendingQty] = useState({});
 
   useEffect(() => {
-    if (!user) { setLoading(false); return; }
     getCart().then(c => { setCart(c); setLoading(false); }).catch(() => setLoading(false));
-  }, [user]);
+  }, []);
 
   async function handleQtyChange(key, qty) {
     if (qty < 1) qty = 1;
     setPendingQty(prev => ({ ...prev, [key]: qty }));
     try {
-      const updated = await updateCartItem(parseInt(key), qty);
+      const updated = await updateCartItem(key, qty);
       setCart(updated);
       setPendingQty(prev => { const n = { ...prev }; delete n[key]; return n; });
     } catch (e) {
@@ -31,7 +28,7 @@ export default function CartPage() {
 
   async function handleRemove(key) {
     try {
-      const updated = await removeCartItem(parseInt(key));
+      const updated = await removeCartItem(key);
       setCart(updated);
       addToast('Item removed from cart', 'info');
     } catch (e) {
@@ -40,20 +37,6 @@ export default function CartPage() {
   }
 
   if (loading) return <main className="content-area"><div className="container"><p className="loading">Loading cart...</p></div></main>;
-
-  if (!user) {
-    return (
-      <main className="content-area">
-        <div className="container">
-          <div className="cart-empty">
-            <h2>Log in to view your cart</h2>
-            <p>Please create an account or sign in to add items to your cart.</p>
-            <Link to="/account" className="btn btn-accent">My Account</Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
 
   const isEmpty = !cart || !cart.items || cart.items.length === 0;
   const subtotal = !isEmpty ? cart.items.reduce((s, i) => s + i.price * i.quantity, 0) : 0;
@@ -105,12 +88,12 @@ export default function CartPage() {
                           value={pendingQty[item.key] ?? item.quantity}
                           min="1"
                           max={Math.min(99, item.stock)}
-                          onChange={e => handleQtyChange(parseInt(item.key), parseInt(e.target.value) || 1)}
+                          onChange={e => handleQtyChange(item.key, parseInt(e.target.value) || 1)}
                         />
                       </td>
                       <td className="product-subtotal" data-title="Subtotal">${(item.price * (pendingQty[item.key] ?? item.quantity)).toFixed(2)}</td>
                       <td className="product-remove" data-title="Remove">
-                        <button className="remove" onClick={() => handleRemove(parseInt(item.key))} aria-label={`Remove ${item.name} from cart`}>&times;</button>
+                        <button className="remove" onClick={() => handleRemove(item.key)} aria-label={`Remove ${item.name} from cart`}>&times;</button>
                       </td>
                     </tr>
                   ))}
@@ -125,7 +108,7 @@ export default function CartPage() {
                   <tbody>
                     <tr><th>Subtotal</th><td>${subtotal.toFixed(2)}</td></tr>
                     <tr><th>Shipping</th><td>Calculated at checkout</td></tr>
-                    <tr className="order-total"><th>Total</th><td>${subtotal.toFixed(2)}</td></tr>
+                    <tr><th>Tax</th><td>Calculated at checkout</td></tr>
                   </tbody>
                 </table>
                 <div className="wc-proceed-to-checkout" style={{ marginTop: 16 }}>
@@ -134,7 +117,16 @@ export default function CartPage() {
               </div>
               <div>
                 <div className="cart-shipping-note">
-                  <p>Free shipping on orders over $100 CAD within Canada.</p>
+                  {subtotal >= 100 ? (
+                    <p className="free-shipping-unlocked">Free shipping unlocked!</p>
+                  ) : (
+                    <>
+                      <p>Add ${(100 - subtotal).toFixed(2)} more for free shipping.</p>
+                      <div className="shipping-progress-bar">
+                        <div className="shipping-progress-fill" style={{ width: `${Math.min(100, (subtotal / 100) * 100)}%` }} />
+                      </div>
+                    </>
+                  )}
                 </div>
                 <Link to="/shop" className="btn btn-outline" style={{ width: '100%', textAlign: 'center', marginTop: 12 }}>Continue Shopping</Link>
               </div>

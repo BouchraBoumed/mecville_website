@@ -83,7 +83,9 @@ export default function CheckoutPage() {
     }
 
     const address = buildAddress();
-    const { clientSecret, orderNumber: onum } = await createStripePaymentIntent(address, address);
+    // Guests must send their cart items (no server cart to read from).
+    const guestItems = !user ? cart.items.map(i => ({ product_id: i.product_id, quantity: i.quantity })) : null;
+    const { clientSecret, orderNumber: onum } = await createStripePaymentIntent(address, address, guestItems);
     setOrderNumber(onum);
 
     const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
@@ -111,6 +113,8 @@ export default function CheckoutPage() {
     if (paymentIntent?.status === 'succeeded') {
       const result = await confirmStripePayment(paymentIntent.id);
       if (result.success) {
+        // Clear the guest cart on success.
+        if (!user) localStorage.removeItem('mecville_cart');
         setDone(true);
       } else {
         setError('Payment confirmation failed. Please contact support.');
@@ -121,10 +125,12 @@ export default function CheckoutPage() {
   async function handlePayPalCheckout() {
     setError('');
     const address = buildAddress();
-    const { paypalOrderId, approvalUrl } = await createPayPalOrder(address, address);
+    const guestItems = !user ? cart.items.map(i => ({ product_id: i.product_id, quantity: i.quantity })) : null;
+    const { paypalOrderId, approvalUrl } = await createPayPalOrder(address, address, guestItems);
     if (approvalUrl) {
       sessionStorage.setItem('paypal_order_id', paypalOrderId);
       sessionStorage.setItem('paypal_shipping_address', JSON.stringify(address));
+      if (!user) sessionStorage.setItem('paypal_guest_items', JSON.stringify(guestItems));
       window.location.href = approvalUrl;
     } else {
       setError('PayPal is not available');
@@ -137,6 +143,9 @@ export default function CheckoutPage() {
       capturePayPalOrder(paypalOrderId)
         .then(result => {
           if (result.success) {
+            // Clear the guest cart on PayPal success.
+            localStorage.removeItem('mecville_cart');
+            sessionStorage.removeItem('paypal_guest_items');
             setOrderNumber(result.order?.order_number || '');
             setDone(true);
           }
@@ -167,7 +176,13 @@ export default function CheckoutPage() {
       <main className="content-area"><div className="container">
         <div className="cart-empty"><h2>Order Placed!</h2>
           <p>Thank you for your order{orderNumber ? ` (#${orderNumber})` : ''}. You'll receive a confirmation email shortly.</p>
-          <Link to="/shop" className="btn btn-accent">Continue Shopping</Link>
+          {!user && form.email && (
+            <div className="guest-account-offer">
+              <p>Want to track this order and save your details for next time?</p>
+              <Link to="/account" className="btn btn-outline" style={{ marginTop: 8 }}>Create an account</Link>
+            </div>
+          )}
+          <Link to="/shop" className="btn btn-accent" style={{ marginTop: 16 }}>Continue Shopping</Link>
         </div>
       </div></main>
     );
@@ -283,6 +298,11 @@ export default function CheckoutPage() {
                 </div>
               )}
 
+              <div className="checkout-trust">
+                <span className="trust-badge">Secure checkout &middot; Stripe encrypted</span>
+                <span className="trust-note">All cards are authentic. 30-day returns on sealed products.</span>
+              </div>
+
               <button type="submit" className="btn btn-accent btn-lg" disabled={submitting} style={{ width: '100%' }}>
                 {submitting ? 'Processing...' : `Pay $${total.toFixed(2)}`}
               </button>
@@ -302,12 +322,12 @@ export default function CheckoutPage() {
                 </div>
               ))}
               <div className="checkout-mini-totals">
-                <div className="mini-total-row"><span>Subtotal</span><span>$${subtotal.toFixed(2)}</span></div>
+                <div className="mini-total-row"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
                 <div className="mini-total-row"><span>Shipping</span><span>{shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}</span></div>
                 {taxRate > 0 && (
-                  <div className="mini-total-row"><span>Tax ({(taxRate * 100).toFixed(2)}%)</span><span>$${taxAmountCalc.toFixed(2)}</span></div>
+                  <div className="mini-total-row"><span>Tax ({(taxRate * 100).toFixed(2)}%)</span><span>${taxAmountCalc.toFixed(2)}</span></div>
                 )}
-                <div className="mini-total-row total"><span>Total</span><span>$${total.toFixed(2)}</span></div>
+                <div className="mini-total-row total"><span>Total</span><span>${total.toFixed(2)}</span></div>
               </div>
             </div>
           </div>

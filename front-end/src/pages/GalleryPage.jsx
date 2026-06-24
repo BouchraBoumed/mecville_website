@@ -8,6 +8,7 @@ export default function GalleryPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Curated wall: newest arrivals with images (sorted by created_at desc by default).
     getProducts({ page: 1, perPage: 50 })
       .then(({ data }) => {
         const withImages = (data || []).filter(p => p.images && p.images.length > 0);
@@ -19,32 +20,39 @@ export default function GalleryPage() {
 
   return (
     <main className="content-area">
-      <Seo title="Gallery" description="Explore Mecville's product highlights and premium Pokémon TCG collectables." />
+      <Seo title="New Arrivals" description="Explore Mecville's latest arrivals and hits of the week: premium Pokémon TCG singles, sealed products, and graded cards." />
       <div className="container">
         <section className="page-intro">
-          <h1>Gallery</h1>
-          <p>Explore Mecville's product highlights and premium collectables. Browse curated card collections, sealed sets, and graded inventory in one place.</p>
+          <h1>New Arrivals</h1>
+          <p>Fresh pulls, recent restocks, and hits of the week. Browse our latest additions before they are gone.</p>
         </section>
 
         {loading ? (
           <div className="loading">Loading...</div>
         ) : galleryItems.length > 0 ? (
           <div className="gallery-grid">
-            {galleryItems.map(item => (
-              <Link to={`/product/${item.slug}`} key={item.id} style={{ textDecoration: 'none' }}>
-                <article className="gallery-card">
-                  <img src={item.images?.[0]?.src} alt={item.name} />
-                  <div className="gallery-card-content">
-                    <h3 className="gallery-card-title">{item.name}</h3>
-                    <p className="gallery-card-description">{item.short_description?.replace(/<[^>]*>/g, '').slice(0, 120) || 'Premium collectable card or product.'}</p>
-                  </div>
-                </article>
-              </Link>
-            ))}
+            {galleryItems.map(item => {
+              const price = Number(item.price) || 0;
+              const inStock = item.stock > 0;
+              return (
+                <Link to={`/product/${item.slug}`} key={item.id} style={{ textDecoration: 'none' }}>
+                  <article className="gallery-card">
+                    <img src={item.images?.[0]?.src} alt={item.name} loading="lazy" />
+                    <div className="gallery-card-content">
+                      <h3 className="gallery-card-title">{item.name}</h3>
+                      <div className="gallery-card-meta">
+                        <span className="gallery-card-price">${price.toFixed(2)}</span>
+                        <span className={`gallery-card-stock ${inStock ? 'in' : 'out'}`}>{inStock ? 'In Stock' : 'Sold Out'}</span>
+                      </div>
+                    </div>
+                  </article>
+                </Link>
+              );
+            })}
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: 60 }}>
-            <p style={{ color: '#8892a4', fontSize: 18, marginBottom: 24 }}>Gallery items will appear here once products with images are added.</p>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: 18, marginBottom: 24 }}>New arrivals will appear here once products with images are added.</p>
             <Link to="/shop" className="btn btn-accent">Browse Shop</Link>
           </div>
         )}

@@ -32,7 +32,7 @@ export default function HomePage() {
         <div className="container">
           <div className="section-header">
             <h2 className="section-title">Featured Products</h2>
-            <Link to="/shop" className="btn btn-outline">View All</Link>
+            <Link to="/shop" className="view-all-link">View All &rsaquo;</Link>
           </div>
           {loadingProducts ? (
             <div className="products-grid">

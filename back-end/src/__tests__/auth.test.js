@@ -65,16 +65,15 @@ afterAll(() => {
 
 describe('Auth Middleware — requireAuth', () => {
   it('returns 401 when no Authorization header', async () => {
-    const res = await request.post('/api/payments/stripe/create-intent').send({});
+    const res = await request.get('/api/admin/stats');
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe('UNAUTHORIZED');
   });
 
   it('returns 401 when Authorization header does not start with Bearer', async () => {
     const res = await request
-      .post('/api/payments/stripe/create-intent')
-      .set('Authorization', 'Basic abc123')
-      .send({});
+      .get('/api/admin/stats')
+      .set('Authorization', 'Basic abc123');
     expect(res.status).toBe(401);
   });
 
@@ -83,9 +82,8 @@ describe('Auth Middleware — requireAuth', () => {
     supabaseMock.__setGetUserResult({ data: { user: null }, error: { message: 'Invalid token' } });
 
     const res = await request
-      .post('/api/payments/stripe/create-intent')
-      .set('Authorization', 'Bearer invalid-token')
-      .send({});
+      .get('/api/admin/stats')
+      .set('Authorization', 'Bearer invalid-token');
     expect(res.status).toBe(401);
 
     // Reset for other tests

@@ -40,10 +40,6 @@ export default function ProductPage() {
   }, [slug]);
 
   async function handleAddToCart() {
-    if (!user) {
-      addToast('Please create an account or sign in to add items to your cart', 'info');
-      return;
-    }
     try {
       await addToCart(product.id, qty);
       setAdded(true);
@@ -138,6 +134,12 @@ export default function ProductPage() {
 
           <div className="single-product-summary">
             <h1 className="product-title">{product.name}</h1>
+            {reviews.length > 0 && (
+              <div className="product-rating-summary">
+                <span className="rating-stars">{'★'.repeat(Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length))}{'☆'.repeat(5 - Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length))}</span>
+                <span className="rating-count">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
+              </div>
+            )}
             <div className="product-price">
               {isOnSale ? <><del>${regularPrice.toFixed(2)}</del> <ins>${salePrice.toFixed(2)}</ins></> : `$${displayPrice.toFixed(2)}`}
             </div>
@@ -154,26 +156,26 @@ export default function ProductPage() {
 
             {inStock && (
               <div className="cart">
-                <div className="quantity">
-                  <label htmlFor="product-qty" className="sr-only">Quantity</label>
-                  <input
-                    id="product-qty"
-                    type="number"
-                    className="qty"
-                    value={qty}
-                    min="1"
-                    max={Math.min(99, product.stock)}
-                    onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
-                  />
+                <div className="quantity-stepper">
+                  <button
+                    type="button"
+                    className="stepper-btn"
+                    onClick={() => setQty(Math.max(1, qty - 1))}
+                    disabled={qty <= 1}
+                    aria-label="Decrease quantity"
+                  >&minus;</button>
+                  <span className="stepper-value" aria-live="polite">{qty}</span>
+                  <button
+                    type="button"
+                    className="stepper-btn"
+                    onClick={() => setQty(Math.min(Math.min(99, product.stock), qty + 1))}
+                    disabled={qty >= Math.min(99, product.stock)}
+                    aria-label="Increase quantity"
+                  >+</button>
                 </div>
                 <button onClick={handleAddToCart} className="btn btn-accent single_add_to_cart_button">
                   {added ? 'Added!' : 'Add to Cart'}
                 </button>
-              </div>
-            )}
-            {!user && (
-              <div className="alert alert-info">
-                <Link to="/account">Create an account</Link> to add items to your cart.
               </div>
             )}
 
@@ -263,6 +265,15 @@ export default function ProductPage() {
           </div>
         )}
       </div>
+
+      {inStock && (
+        <div className="mobile-buy-bar" role="region" aria-label="Quick purchase">
+          <span className="mbb-price">${displayPrice.toFixed(2)}</span>
+          <button onClick={handleAddToCart} className="btn btn-accent mbb-btn">
+            {added ? 'Added!' : 'Add to Cart'}
+          </button>
+        </div>
+      )}
     </main>
   );
 }

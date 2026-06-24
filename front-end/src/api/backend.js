@@ -35,12 +35,13 @@ async function request(path, options = {}) {
 }
 
 // ── Payments (Stripe) ─────────────────────────────────────────
-export async function createStripePaymentIntent(shippingAddress, billingAddress) {
+export async function createStripePaymentIntent(shippingAddress, billingAddress, items = null) {
   return request('/payments/stripe/create-intent', {
     method: 'POST',
     body: JSON.stringify({
       shipping_address: shippingAddress,
       billing_address: billingAddress || shippingAddress,
+      ...(items ? { items } : {}),
     }),
   });
 }
@@ -53,12 +54,13 @@ export async function confirmStripePayment(paymentId) {
 }
 
 // ── Payments (PayPal) ─────────────────────────────────────────
-export async function createPayPalOrder(shippingAddress, billingAddress) {
+export async function createPayPalOrder(shippingAddress, billingAddress, items = null) {
   return request('/payments/paypal/create-order', {
     method: 'POST',
     body: JSON.stringify({
       shipping_address: shippingAddress,
       billing_address: billingAddress || shippingAddress,
+      ...(items ? { items } : {}),
     }),
   });
 }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { mergeGuestCart } from '../api/data';
 
 const AuthContext = createContext(null);
 
@@ -17,10 +18,15 @@ export function AuthProvider({ children }) {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id);
+        // Merge any guest cart items into the user's server cart on sign-in.
+        // Fire-and-forget; mergeGuestCart checks for a session internally.
+        if (event === 'SIGNED_IN') {
+          mergeGuestCart().catch(() => {});
+        }
       } else {
         setProfile(null);
       }
