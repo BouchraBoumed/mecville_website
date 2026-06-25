@@ -277,24 +277,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 .header-icons { display: flex; align-items: center; gap: 8px; }
 
-.header-search { display: flex; align-items: center; gap: 0; }
+.header-search { display: flex; align-items: center; gap: 0; flex: 1; max-width: 280px; }
 .header-search-input {
-  width: 0; opacity: 0; padding: 8px 0; background: var(--color-surface);
-  border: 1px solid transparent; border-radius: var(--radius-sm);
+  width: 100%; opacity: 1; padding: 8px 12px; background: var(--color-surface);
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   color: var(--color-text); font-size: 14px; font-family: var(--font-primary);
-  transition: width 0.3s ease, opacity 0.2s ease, border-color var(--transition), padding 0.3s ease;
+  transition: border-color var(--transition);
   outline: none;
 }
-.header-search-input:focus, .header-search-input:not(:placeholder-shown) {
-  width: 180px; opacity: 1; padding: 8px 12px; border-color: var(--color-border);
+.header-search-input:focus {
+  border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-accent-glow);
 }
-.header-search-input:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-accent-glow); }
 .header-search-btn {
   display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;
-  background: none; border: none; color: var(--color-text); cursor: pointer;
-  border-radius: var(--radius-sm); transition: background var(--transition), color var(--transition);
+  background: var(--color-surface); border: 1px solid var(--color-border); border-left: none;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--color-text-secondary); cursor: pointer;
+  transition: background var(--transition), color var(--transition);
 }
-.header-search-btn:hover { background: var(--color-surface); color: var(--color-accent); }
+.header-search-btn:hover { background: var(--color-card-hover); color: var(--color-accent); }
 .header-search-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 
 .account-avatar {
@@ -463,14 +464,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .shop-header { padding: 40px 0 20px; }
 .shop-title { font-size: 2rem; }
 .term-description { color: var(--color-text-muted); margin-top: 8px; font-size: 14px; }
-.shop-layout { display: grid; grid-template-columns: 260px 1fr; gap: 32px; }
+.shop-layout { display: grid; grid-template-columns: 300px 1fr; gap: 32px; }
 
 .shop-sidebar .widget { margin-bottom: 24px; padding: 20px; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
 .widget-title { font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-muted); margin-bottom: 16px; }
 .shop-sidebar ul { list-style: none; padding: 0; margin: 0; }
 .shop-sidebar li { margin-bottom: 6px; }
-.shop-sidebar a, .shop-sidebar button { font-size: 14px; color: var(--color-text-secondary); padding: 6px 0; display: block; cursor: pointer; background: none; border: none; font-family: var(--font-primary); text-align: left; width: 100%; transition: color var(--transition); }
-.shop-sidebar a:hover, .shop-sidebar a.active, .shop-sidebar button:hover { color: var(--color-accent); }
+.shop-sidebar a, .shop-sidebar button:not(.shop-search-btn) { font-size: 14px; color: var(--color-text-secondary); padding: 6px 0; display: block; cursor: pointer; background: none; border: none; font-family: var(--font-primary); text-align: left; width: 100%; transition: color var(--transition); }
+.shop-sidebar a:hover, .shop-sidebar a.active, .shop-sidebar button:not(.shop-search-btn):hover { color: var(--color-accent); }
 .shop-sidebar a.active { color: var(--color-accent); font-weight: 600; }
 
 .shop-sidebar input[type="text"] {
@@ -499,17 +500,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 /* ── Search bar ────────────────────────────────────────────── */
 
-.shop-search-form { display: flex; gap: 8px; align-items: stretch; }
+.shop-search-form { display: flex; gap: 0; align-items: stretch; }
 .shop-search-form input {
   flex: 1;
   min-width: 0;
-  padding: 10px 14px;
+  padding: 12px 16px;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   color: var(--color-text);
   font-family: var(--font-primary);
-  font-size: 14px;
+  font-size: 15px;
   transition: border-color var(--transition);
 }
 .shop-search-form input:focus {
@@ -521,14 +522,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 .shop-search-btn {
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
+  width: 5%;
+  min-width: 36px;
+  height: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-left: none;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   color: var(--color-text-secondary);
   cursor: pointer;
   transition: all var(--transition);
@@ -813,7 +816,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* ── Responsive ───────────────────────────────────────────── */
 
 @media (max-width: 1024px) {
-  .shop-layout { grid-template-columns: 220px 1fr; }
+  .shop-layout { grid-template-columns: 240px 1fr; }
   .single-product-wrapper { gap: 32px; }
 }
 
@@ -833,6 +836,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   .hero-subheading { margin-left: auto; margin-right: auto; }
   .hero-badges { justify-content: center; }
   .menu-toggle { display: flex; }
+  .header-search { max-width: 140px; }
   .main-navigation { display: none; position: absolute; top: var(--header-height); left: 0; right: 0; background: var(--color-bg); border-bottom: 1px solid var(--color-border); padding: 12px; box-shadow: var(--shadow-lg); }
   .main-navigation.toggled { display: block; }
   .main-navigation ul { flex-direction: column; }
