@@ -10,6 +10,7 @@ import {
   uploadProductImage, importCsv,
 } from '../api/backend';
 import { useToast } from '../components/Toast';
+import { uploadProductImage } from '../api/storage';
 
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard' },
@@ -44,10 +45,7 @@ export default function AdminPage() {
   const [productForm, setProductForm] = useState(EMPTY_PRODUCT);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [categories, setCategories] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [csvImporting, setCsvImporting] = useState(false);
-  const [csvResult, setCsvResult] = useState(null);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -182,6 +180,32 @@ export default function AdminPage() {
       ...prev,
       images: prev.images.filter((_, i) => i !== index),
     }));
+  }
+
+  async function handleImageUpload(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setUploading(true);
+    try {
+      const slug = productForm.slug || 'misc';
+      const uploaded = [];
+      for (const file of files) {
+        const result = await uploadProductImage(file, slug);
+        uploaded.push(result);
+      }
+      setProductForm(prev => ({
+        ...prev,
+        images: [...prev.images, ...uploaded],
+      }));
+      addToast(`${uploaded.length} image(s) uploaded`, 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setUploading(false);
+      // Reset the input so the same file can be selected again
+      e.target.value = '';
+    }
   }
 
   async function handleSaveProduct(e) {
@@ -496,20 +520,19 @@ export default function AdminPage() {
                             <button type="button" className="btn btn-xs btn-danger" onClick={() => handleImageRemove(i)}>Remove</button>
                           </div>
                         ))}
-                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                          <label className="btn btn-xs btn-outline" style={{ cursor: 'pointer' }}>
-                            {uploading ? 'Uploading...' : 'Upload Image'}
-                            <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} disabled={uploading} />
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                          <label className="btn btn-xs btn-outline" style={{ cursor: uploading ? 'wait' : 'pointer', opacity: uploading ? 0.6 : 1 }}>
+                            {uploading ? 'Uploading...' : '+ Upload Image'}
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              multiple
+                              onChange={handleImageUpload}
+                              disabled={uploading}
+                              style={{ display: 'none' }}
+                            />
                           </label>
-                          <button type="button" className="btn btn-xs btn-outline" onClick={() => {
-                            const url = prompt('Or paste image URL:');
-                            if (url && url.trim()) {
-                              setProductForm(prev => ({
-                                ...prev,
-                                images: [...prev.images, { src: url.trim(), alt: prev.name || 'Product image' }],
-                              }));
-                            }
-                          }}>+ Paste URL</button>
+                          <button type="button" className="btn btn-xs btn-outline" onClick={handleImageAdd}>+ Add Image URL</button>
                         </div>
                       </div>
 

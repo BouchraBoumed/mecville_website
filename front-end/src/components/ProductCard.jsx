@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { addToCart } from '../api/data';
-import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
 
 export default function ProductCard({ product }) {
-  const { user } = useAuth();
   const { addToast } = useToast();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
@@ -15,15 +13,12 @@ export default function ProductCard({ product }) {
   const comparePrice = product.compare_price ? Number(product.compare_price) : null;
   const isOnSale = !!comparePrice && comparePrice > price;
   const inStock = product.stock > 0;
+  const lowStock = inStock && product.stock <= 5;
   const attrs = Object.values(product.attributes || {}).filter(Boolean).slice(0, 3);
 
   async function handleAddToCart(e) {
     e.preventDefault();
     e.stopPropagation();
-    if (!user) {
-      addToast('Please log in to add items to your cart', 'info');
-      return;
-    }
     if (!inStock) return;
     setAdding(true);
     try {
@@ -51,6 +46,7 @@ export default function ProductCard({ product }) {
           )}
           {isOnSale && <span className="sale-badge">Sale</span>}
           {!inStock && <span className="stock-badge out-of-stock">Out of Stock</span>}
+          {lowStock && <span className="stock-badge low-stock">{product.stock} left</span>}
         </div>
         <div className="product-info">
           <h3 className="product-title">{product.name}</h3>

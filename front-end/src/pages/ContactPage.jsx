@@ -47,7 +47,7 @@ export default function ContactPage() {
 
   return (
     <main className="content-area">
-      <Seo title="Contact Us" description="Need help with an order or product question? Contact Mecville - Montreal's premium Pokemon TCG store." />
+      <Seo title="Contact Us" description="Need help with an order or product question? Contact Mecville - Montreal's premium Pokémon TCG store." />
       <div className="container">
         <section className="page-intro">
           <h1>Contact Us</h1>
@@ -58,9 +58,10 @@ export default function ContactPage() {
           <div className="contact-card">
             <h2>Get in touch</h2>
             <p>We're here to help with orders, product questions, and general store support.</p>
-            <p><strong>Email</strong><br />support@mecville.com</p>
-            <p><strong>Phone</strong><br />(514) 123-4567</p>
+            <p><strong>Email</strong><br /><a href="mailto:support@mecville.com">support@mecville.com</a></p>
+            <p><strong>Phone</strong><br /><a href="tel:+15141234567">(514) 123-4567</a></p>
             <p><strong>Location</strong><br />Montreal, Quebec, Canada</p>
+            <p><strong>Store Hours</strong><br />Mon–Fri: 10AM–6PM EST<br />Sat: 11AM–4PM EST<br />Sun: Closed</p>
           </div>
           <div className="contact-form">
             <h2>Send a message</h2>

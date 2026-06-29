@@ -90,7 +90,7 @@ create index idx_products_slug on public.products(slug);
 -- 4. Cart Items
 create table if not exists public.cart_items (
   id          bigserial primary key,
-  user_id     uuid not null references public.profiles(id) on delete cascade,
+  user_id     uuid not null references public.profiles(id) on delete cascade default auth.uid(),
   product_id  bigint not null references public.products(id) on delete cascade,
   quantity    int not null default 1 check (quantity > 0 and quantity <= 99),
   created_at  timestamptz not null default now(),

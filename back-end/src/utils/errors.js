@@ -1,3 +1,5 @@
+import { captureError } from './sentry.js';
+
 export class AppError extends Error {
   constructor(message, statusCode = 400, code = 'BAD_REQUEST') {
     super(message);
@@ -12,7 +14,14 @@ export function errorHandler(err, req, res, _next) {
   const message = statusCode === 500 ? 'Internal server error' : err.message;
 
   if (statusCode === 500) {
-    console.error('Unhandled error:', err);
+    // Send to Sentry (if configured) with request context
+    captureError(err, {
+      method: req.method,
+      url: req.url,
+      statusCode,
+      code,
+      userId: req.user?.id,
+    });
   }
 
   res.status(statusCode).json({

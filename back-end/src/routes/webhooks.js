@@ -31,11 +31,16 @@ router.post('/stripe', async (req, res) => {
   }
 });
 
-// PayPal webhook — uses regular JSON body parser
+// PayPal webhook — raw body captured by express.json verify hook in app.js
 router.post('/paypal', async (req, res) => {
   try {
     const { verifyWebhook } = await import('../services/paypal.js');
-    const verified = await verifyWebhook(req.headers, req.body);
+
+    // PayPal's verification API requires the raw request body string,
+    // not the parsed JSON object. This is captured in app.js via the
+    // express.json verify() hook and stored on req.rawBody.
+    const rawBody = req.rawBody || JSON.stringify(req.body);
+    const verified = await verifyWebhook(req.headers, rawBody);
 
     if (!verified) {
       return res.status(400).json({ error: 'Invalid webhook signature' });
@@ -83,12 +88,32 @@ async function handlePaymentSuccess(paymentIntent) {
 async function handlePaymentFailed(paymentIntent) {
   const paymentId = paymentIntent.id;
 
+  // Mark order as failed and cancelled
   await supabase
     .from('orders')
-    .update({
-      payment_status: 'failed',
-    })
+    .update({ payment_status: 'failed', status: 'cancelled' })
     .eq('payment_id', paymentId);
+
+  // Restore reserved stock for this order
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('payment_id', paymentId)
+    .maybeSingle();
+
+  if (!order) return;
+
+  const { data: items } = await supabase
+    .from('order_items')
+    .select('product_id, quantity')
+    .eq('order_id', order.id);
+
+  for (const item of items || []) {
+    await supabase.rpc('increment_stock', {
+      product_id: item.product_id,
+      qty: item.quantity,
+    });
+  }
 }
 
 async function handlePayPalCaptureCompleted(capture) {
@@ -118,8 +143,29 @@ async function handlePayPalCaptureCompleted(capture) {
 async function handlePayPalCaptureFailed(capture) {
   await supabase
     .from('orders')
-    .update({ payment_status: 'refunded' })
+    .update({ payment_status: 'refunded', status: 'cancelled' })
     .eq('payment_id', capture.id);
+
+  // Restore stock for refunded/denied orders
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('payment_id', capture.id)
+    .maybeSingle();
+
+  if (!order) return;
+
+  const { data: items } = await supabase
+    .from('order_items')
+    .select('product_id, quantity')
+    .eq('order_id', order.id);
+
+  for (const item of items || []) {
+    await supabase.rpc('increment_stock', {
+      product_id: item.product_id,
+      qty: item.quantity,
+    });
+  }
 }
 
 export default router;

@@ -17,3 +17,19 @@ npm-debug.log*
 # Env
 .env
 .env.local
+
+# Build output
+front-end/dist/
+
+# Logs
+logs/
+*.log
+
+# Docker
+# (no .env in docker — uses host .env)
+
+# Playwright
+front-end/test-results/
+front-end/playwright-report/
+
+# Editor

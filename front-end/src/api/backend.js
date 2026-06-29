@@ -1,12 +1,22 @@
 // API layer for the Mecville Express backend (payments, contact, admin)
 // Products, cart, and auth use Supabase directly via the JS client.
 
+import { supabase } from '../lib/supabase';
+
 const API = '/api';
 
+/**
+ * Get the current session's access token via the Supabase client.
+ * This is resilient to Supabase SDK storage format changes —
+ * the SDK manages token refresh and storage internals for us.
+ */
+async function getAuthToken() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
+}
+
 async function request(path, options = {}) {
-  const token = localStorage.getItem('supabase.auth.token')
-    ? JSON.parse(localStorage.getItem('supabase.auth.token'))?.access_token
-    : null;
+  const token = await getAuthToken();
 
   const headers = {
     'Content-Type': 'application/json',
@@ -25,8 +35,15 @@ async function request(path, options = {}) {
 }
 
 // ── Payments (Stripe) ─────────────────────────────────────────
-export async function createStripePaymentIntent() {
-  return request('/payments/stripe/create-intent', { method: 'POST' });
+export async function createStripePaymentIntent(shippingAddress, billingAddress, items = null) {
+  return request('/payments/stripe/create-intent', {
+    method: 'POST',
+    body: JSON.stringify({
+      shipping_address: shippingAddress,
+      billing_address: billingAddress || shippingAddress,
+      ...(items ? { items } : {}),
+    }),
+  });
 }
 
 export async function confirmStripePayment(paymentId) {
@@ -37,8 +54,15 @@ export async function confirmStripePayment(paymentId) {
 }
 
 // ── Payments (PayPal) ─────────────────────────────────────────
-export async function createPayPalOrder() {
-  return request('/payments/paypal/create-order', { method: 'POST' });
+export async function createPayPalOrder(shippingAddress, billingAddress, items = null) {
+  return request('/payments/paypal/create-order', {
+    method: 'POST',
+    body: JSON.stringify({
+      shipping_address: shippingAddress,
+      billing_address: billingAddress || shippingAddress,
+      ...(items ? { items } : {}),
+    }),
+  });
 }
 
 export async function capturePayPalOrder(paypalOrderId) {

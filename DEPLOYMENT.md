@@ -1,149 +1,258 @@
-# Mecville Theme - Deployment Guide
+# Mecville — Production Deployment Guide
 
-## Files to Upload
+## Architecture
 
-Upload the entire `wp-content/` folder to your Hostinger WordPress installation.
+```
+User → nginx (port 80/443)
+         ├── /api/* → Express backend (port 3001, PM2)
+         └── /*     → React static files (front-end/dist/)
+                      → Supabase (PostgreSQL + Auth + Storage)
+                      → Stripe / PayPal APIs
+```
 
-The theme is at: `wp-content/themes/mecville-theme/`
+| Component | Technology | Port |
+|-----------|-----------|------|
+| Frontend | React 18 + Vite (static build) | 80/443 (nginx) |
+| Backend | Express.js | 3001 |
+| Database | Supabase (PostgreSQL) | hosted |
+| Auth | Supabase Auth | hosted |
+| Payments | Stripe + PayPal | hosted |
+| Process Manager | PM2 | — |
 
-## Step 1: Upload Theme
+## Option A: VPS Deployment (Ubuntu/Debian)
 
-1. Go to Hostinger hPanel → **File Manager**
-2. Navigate to `public_html/wp-content/themes/`
-3. Upload the `mecville-theme` folder here
-4. Or use **Appearance → Themes → Add New → Upload Theme** and zip the folder first
+### Step 1: Install Node.js + PM2 + nginx
 
-## Step 2: Activate Theme & Required Plugins
+```bash
+# Node.js 20 LTS
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
 
-In WordPress admin, activate these in order:
+# PM2 (process manager)
+sudo npm install -g pm2
 
-1. **Appearance → Themes** → Activate "Mecville - Pokémon TCG Store"
-2. **Plugins → Add New** and install/activate:
-   - **WooCommerce** (required)
-   - **WooCommerce Stripe Payment Gateway** (free)
-   - **WooCommerce PayPal Payments** (free)
-   - **Wordfence Security** (free)
-   - **Rank Math SEO** (free)
-   - **LiteSpeed Cache** (free - works with Hostinger)
+# nginx
+sudo apt-get install -y nginx
 
-## Step 3: WooCommerce Setup Wizard
+# Certbot for SSL
+sudo apt-get install -y certbot python3-certbot-nginx
+```
 
-1. Go to **WooCommerce → Settings**
-2. **General**: Currency = Canadian Dollar ($), Currency Position = left, Thousand Separator = `,`, Decimal Separator = `.`
-3. **Products → Inventory**: Enable stock management
-4. **Shipping**: Add shipping zones (Canada, US, International) with flat rates
-5. **Payments**: Enable Stripe and PayPal, connect your accounts
+### Step 2: Clone and install
 
-## Step 4: Product Attributes Setup
+```bash
+cd /var/www
+git clone <your-repo> mecville
+cd mecville
 
-Go to **Products → Attributes** and create:
+# Install dependencies
+npm install                    # root (concurrently)
+cd front-end && npm install && cd ..
+cd back-end && npm install && cd ..
+```
 
-| Name | Slug | Enable Archives? |
-|------|------|-----------------|
-| Set | set | Yes |
-| Rarity | rarity | Yes |
-| Condition | condition | Yes |
-| Language | language | Yes |
-| Grading Company | grading-company | Yes |
+### Step 3: Configure environment variables
 
-For **Condition**, add terms: Sealed, Near Mint, Lightly Played, Moderately Played, Heavily Played, Damaged, Graded
-For **Rarity**, add terms: Common, Uncommon, Rare, Holo Rare, Ultra Rare, Special Art Rare, Hyper Rare, V, VMAX, VSTAR, ex
-For **Language**, add terms: English, Japanese, French, German, Spanish
+```bash
+cp front-end/.env.example front-end/.env
+cp back-end/.env.example back-end/.env
+```
 
-## Step 5: Create Categories
+Edit **both** `.env` files with your real credentials (see SUPABASE_SETUP.md):
 
-Go to **Products → Categories** and create:
+**front-end/.env** — set Supabase URL, anon key, Stripe publishable key
+**back-end/.env** — set all credentials, and change:
+```
+CORS_ORIGIN=https://mecville.com
+NODE_ENV=production
+```
 
-- Sealed
-  - Booster Boxes
-  - Elite Trainer Boxes
-  - Booster Bundles
-- Singles
-  - Modern
-  - Vintage
-  - Promos
-- Graded Cards
-  - PSA
-  - BGS
-  - CGC
-- Bundles
-  - Mixed Lots
-  - Starter Bundles
-  - Complete Sets
+### Step 4: Run database migrations
 
-## Step 6: Create Pages
+Follow **SUPABASE_SETUP.md** to:
+1. Create your Supabase project
+2. Run `001_schema.sql` and `002_storage_bucket.sql` in the SQL Editor
+3. Optionally run `seed.sql` for sample data
+4. Get your API keys and put them in `.env`
 
-Go to **Pages → Add New**:
+### Step 5: Build the frontend
 
-1. **Home** → use template "Homepage" → set as front page in Settings → Reading
-2. **Shop** → WooCommerce will auto-create this
-3. **Cart** → WooCommerce will auto-create this
-4. **Checkout** → WooCommerce will auto-create this
-5. **My Account** → WooCommerce will auto-create this
-6. **Privacy Policy** → paste content from `sample-data/legal-page-content.txt`
-7. **Terms and Conditions** → paste content
-8. **Shipping Policy** → paste content
-9. **Refund Policy** → paste content
+```bash
+cd front-end
+npm run build
+# Output goes to front-end/dist/
+```
 
-**Settings → Reading**: Set "Your homepage displays" → "A static page" → Homepage = "Home"
+### Step 6: Deploy frontend to nginx
 
-**Appearance → Menus**: Create a primary menu with:
-- Home, Shop, Categories dropdown (Sealed, Singles, Graded, Bundles), Contact
+```bash
+sudo mkdir -p /var/www/mecville/frontend
+sudo cp -r front-end/dist /var/www/mecville/frontend/dist
+```
 
-## Step 7: Homepage Customization
+### Step 7: Configure nginx
 
-Go to **Appearance → Customize → Mecville Theme → Hero Banner**:
+```bash
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/mecville
+sudo ln -s /etc/nginx/sites-available/mecville /etc/nginx/sites-enabled/
+sudo rm /etc/nginx/sites-enabled/default  # remove default site
+sudo nginx -t
+sudo systemctl reload nginx
+```
 
-- Set your heading, subheading, CTA text
-- Upload a hero background image (ideally 1920x800, something Pokemon TCG themed)
-- Adjust accent color if desired
+### Step 8: Start the backend with PM2
 
-## Step 8: Import Products (CSV)
+```bash
+cd /var/www/mecville
+pm2 start ecosystem.config.cjs --env production
+pm2 save
+pm2 startup    # follow instructions to enable auto-restart on reboot
+```
 
-1. Go to **Products → All Products → Import**
-2. Upload `sample-data/sample-products.csv`
-3. Map columns appropriately:
-   - SKU → SKU
-   - Name → Name
-   - Description → Description
-   - Price → Regular Price
-   - Categories → Categories
-   - Attribute: Set → pa_set
-   - etc.
-4. Run import. Edit products after import to add actual images.
+### Step 9: Obtain SSL certificate
 
-## Step 9: Speed Optimization
+```bash
+sudo certbot --nginx -d mecville.com -d www.mecville.com
+# Certbot automatically modifies nginx config and sets up auto-renewal
+```
 
-1. **LiteSpeed Cache**: Go to Settings → LiteSpeed Cache → enable all recommended options
-2. Enable **Image Optimization** in LiteSpeed
-3. **Enable caching** (page cache, browser cache)
-4. Minify CSS/JS through LiteSpeed
-5. Enable **CSS combine** and **CSS/JS minify**
+### Step 10: Verify
 
-## Step 10: Security (Wordfence)
+```bash
+# Backend health check
+curl https://mecville.com/api/health
+# Should return: {"status":"ok","timestamp":"..."}
 
-1. Run Wordfence **Quick Setup** wizard
-2. Enable **Login Security** (2FA for admin)
-3. Run a **scan**
+# Frontend
+curl https://mecville.com/
+# Should return HTML
 
-## Step 11: Test
+# PM2 status
+pm2 status
+```
 
-- Place a test order through checkout
-- Test Stripe payment (use test mode first)
-- Test PayPal
-- Check mobile responsiveness
-- Run a PageSpeed test
+### Step 11: Make yourself admin
 
-## Budget Check (Monthly)
+Sign up through the website, then run in Supabase SQL Editor:
+```sql
+update profiles set role = 'admin' where email = 'your-email@example.com';
+```
+
+---
+
+## Option B: Docker Deployment
+
+```bash
+# Create back-end/.env (front-end env is baked at build time)
+cp back-end/.env.example back-end/.env
+# Edit with real credentials
+
+# Build and start
+docker compose up -d --build
+
+# Check status
+docker compose ps
+docker compose logs -f
+
+# SSL: use a reverse proxy (Caddy, Traefik) or certbot on the host
+```
+
+For Docker, the frontend env vars are set at build time. To change them, edit `front-end/.env` and rebuild:
+```bash
+docker compose up -d --build
+```
+
+---
+
+## Updating the Site
+
+### Frontend changes:
+```bash
+cd /var/www/mecville/front-end
+git pull
+npm install        # if dependencies changed
+npm run build
+sudo cp -r dist /var/www/mecville/frontend/dist
+# No restart needed — nginx serves static files
+```
+
+### Backend changes:
+```bash
+cd /var/www/mecville
+git pull
+cd back-end && npm install
+pm2 restart mecville-api
+```
+
+### Database migrations:
+Run new SQL files in the Supabase SQL Editor.
+
+---
+
+## Monitoring
+
+```bash
+# PM2 logs
+pm2 logs mecville-api
+
+# PM2 monitor (CPU, memory)
+pm2 monit
+
+# nginx logs
+sudo tail -f /var/log/nginx/access.log
+sudo tail -f /var/log/nginx/error.log
+
+# Check SSL certificate expiry
+sudo certbot certificates
+```
+
+### Error Tracking (optional — Sentry)
+
+1. Create a project at https://sentry.io (Node.js)
+2. `cd back-end && npm install @sentry/node`
+3. Add `SENTRY_DSN=your-dsn` to `back-end/.env`
+4. `pm2 restart mecville-api`
+
+All 500 errors will automatically be sent to Sentry with request context.
+
+---
+
+## Troubleshooting
+
+### Blank page after deploy
+- Check that `front-end/dist/` contains `index.html`
+- Check nginx error log: `sudo tail /var/log/nginx/error.log`
+- Verify nginx config: `sudo nginx -t`
+
+### API returns 502 Bad Gateway
+- Backend not running: `pm2 status` — should show "online"
+- Check backend logs: `pm2 logs mecville-api`
+- Verify port 3001 is not in use: `lsof -i :3001`
+
+### CORS errors in browser
+- Check `CORS_ORIGIN` in `back-end/.env` matches your domain exactly
+- Restart backend: `pm2 restart mecville-api`
+
+### Payment webhooks not received
+- Verify webhook URL is reachable: `https://mecville.com/api/webhooks/stripe`
+- Check Stripe dashboard → Webhooks → your endpoint → recent events
+- Verify `STRIPE_WEBHOOK_SECRET` matches the signing secret from Stripe
+
+### Cart/checkout errors
+- Verify Supabase keys are correct (anon key in frontend, service_role in backend)
+- Check that database migrations were applied (tables exist)
+- Verify the `product-images` storage bucket exists in Supabase
+
+---
+
+## Monthly Cost
 
 | Item | Cost |
 |------|------|
-| Hostinger Business | ~$5.59 CAD/mo |
-| Wordfence (free) | $0 |
-| Rank Math (free) | $0 |
-| LiteSpeed Cache (free) | $0 |
-| Stripe plugin (free) | $0 |
-| PayPal plugin (free) | $0 |
-| **Total** | **~$5.59 CAD/mo** |
-
-✅ Well under the $50 CAD/month budget.
+| VPS (e.g., Hetzner CX21) | ~$5 CAD/mo |
+| Supabase (free tier) | $0 |
+| Stripe | 2.9% + $0.30 per transaction |
+| PayPal | 3.49% + fixed fee per transaction |
+| Domain | ~$15 CAD/year |
+| PM2, nginx, Certbot | $0 |
+| **Total fixed** | **~$6 CAD/mo** |

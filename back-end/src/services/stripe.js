@@ -12,19 +12,22 @@ const stripe = STRIPE_SECRET_KEY
   ? new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-04-10' })
   : null;
 
-export async function createPaymentIntent(order) {
+export async function createPaymentIntent(order, idempotencyKey) {
   if (!stripe) throw new Error('Stripe is not configured');
-  const intent = await stripe.paymentIntents.create({
-    amount: Math.round(order.total * 100),
-    currency: 'cad',
-    metadata: {
-      order_id: order.id.toString(),
-      order_number: order.order_number,
+  const intent = await stripe.paymentIntents.create(
+    {
+      amount: Math.round(order.total * 100),
+      currency: 'cad',
+      metadata: {
+        order_id: order.id.toString(),
+        order_number: order.order_number,
+      },
+      automatic_payment_methods: {
+        enabled: true,
+      },
     },
-    automatic_payment_methods: {
-      enabled: true,
-    },
-  });
+    idempotencyKey ? { idempotencyKey } : undefined
+  );
 
   return {
     clientSecret: intent.client_secret,

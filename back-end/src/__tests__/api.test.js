@@ -106,15 +106,15 @@ describe('Contact Form', () => {
   });
 });
 
-describe('Payment Endpoints - Auth Required', () => {
-  it('POST /api/payments/stripe/create-intent requires auth', async () => {
+describe('Payment Endpoints - Guest Accessible (optional auth)', () => {
+  it('POST /api/payments/stripe/create-intent returns 400 without body (no auth required)', async () => {
     const res = await request.post('/api/payments/stripe/create-intent').send({});
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
   });
 
-  it('POST /api/payments/paypal/create-order requires auth', async () => {
+  it('POST /api/payments/paypal/create-order returns 400 without body (no auth required)', async () => {
     const res = await request.post('/api/payments/paypal/create-order').send({});
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
   });
 });
 

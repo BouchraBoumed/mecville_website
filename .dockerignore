@@ -1,0 +1,13 @@
+node_modules
+front-end/node_modules
+back-end/node_modules
+.git
+*.log
+.env
+front-end/.env
+back-end/.env
+front-end/dist
+front-end/test-results
+front-end/playwright-report
+back-end/logs
+*.md

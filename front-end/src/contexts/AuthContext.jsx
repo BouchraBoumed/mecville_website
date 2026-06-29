@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { mergeGuestCart } from '../api/data';
 
 const AuthContext = createContext(null);
 
@@ -17,10 +18,15 @@ export function AuthProvider({ children }) {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id);
+        // Merge any guest cart items into the user's server cart on sign-in.
+        // Fire-and-forget; mergeGuestCart checks for a session internally.
+        if (event === 'SIGNED_IN') {
+          mergeGuestCart().catch(() => {});
+        }
       } else {
         setProfile(null);
       }
@@ -61,6 +67,18 @@ export function AuthProvider({ children }) {
     setProfile(null);
   }
 
+  async function resetPassword(email) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/account?reset=true`,
+    });
+    if (error) throw error;
+  }
+
+  async function updatePassword(newPassword) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+  }
+
   async function updateProfile(updates) {
     const { data, error } = await supabase
       .from('profiles')
@@ -83,6 +101,8 @@ export function AuthProvider({ children }) {
     signIn,
     signOut,
     updateProfile,
+    resetPassword,
+    updatePassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

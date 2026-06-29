@@ -44,6 +44,7 @@ export async function createOrder(order) {
       intent: 'CAPTURE',
       purchase_units: [{
         reference_id: order.order_number,
+        custom_id: order.id?.toString() || order.order_number,
         description: `Mecville Order ${order.order_number}`,
         amount: {
           currency_code: 'CAD',
@@ -59,7 +60,7 @@ export async function createOrder(order) {
             },
             tax_total: {
               currency_code: 'CAD',
-              value: order.tax.toFixed(2),
+              value: (order.tax || 0).toFixed(2),
             },
           },
         },
@@ -116,16 +117,34 @@ export async function captureOrder(orderId) {
   return data;
 }
 
-export async function verifyWebhook(headers, body) {
+/**
+ * Verify a PayPal webhook signature.
+ *
+ * @param {Object} headers - The request headers (must include paypal headers)
+ * @param {string} rawBody - The RAW request body as a string (NOT parsed JSON)
+ * @returns {Promise<boolean>}
+ */
+export async function verifyWebhook(headers, rawBody) {
   if (!ENABLED) return false;
 
   const token = await getAccessToken();
   const webhookId = process.env.PAYPAL_WEBHOOK_ID;
 
+  if (!webhookId) {
+    console.error('Missing PAYPAL_WEBHOOK_ID in .env — cannot verify webhook');
+    return false;
+  }
+
+  // PayPal's verification API requires these transmission headers
+  // along with the raw event body string for cryptographic verification.
   const verification = {
+    auth_algo: headers['paypal-auth-algo'],
+    cert_url: headers['paypal-cert-url'],
+    transmission_id: headers['paypal-transmission-id'],
+    transmission_sig: headers['paypal-transmission-sig'],
+    transmission_time: headers['paypal-transmission-time'],
     webhook_id: webhookId,
-    event_type: headers['paypal-event-type'],
-    event_body: body,
+    event_body: typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody),
   };
 
   const res = await fetch(`${PAYPAL_API}/v1/notifications/verify-webhook-signature`, {
@@ -137,7 +156,11 @@ export async function verifyWebhook(headers, body) {
     body: JSON.stringify(verification),
   });
 
-  if (!res.ok) return false;
+  if (!res.ok) {
+    console.error('PayPal webhook verification request failed:', res.status);
+    return false;
+  }
+
   const data = await res.json();
   return data.verification_status === 'SUCCESS';
 }

@@ -5,6 +5,8 @@ import { useToast } from '../components/Toast';
 import { getProductBySlug, getProducts, addToCart, getReviews, createReview } from '../api/data';
 import { useAuth } from '../contexts/AuthContext';
 import ProductCard from '../components/ProductCard';
+import { sanitizeHtml } from '../lib/sanitize';
+import { Helmet } from 'react-helmet-async';
 
 export default function ProductPage() {
   const { slug } = useParams();
@@ -38,10 +40,6 @@ export default function ProductPage() {
   }, [slug]);
 
   async function handleAddToCart() {
-    if (!user) {
-      addToast('Please create an account or sign in to add items to your cart', 'info');
-      return;
-    }
     try {
       await addToCart(product.id, qty);
       setAdded(true);
@@ -74,6 +72,34 @@ export default function ProductPage() {
         image={allImages[0]?.src}
         url={`/product/${product.slug}`}
       />
+      <Helmet>
+        <script type="application/ld+json">
+          {JSON.stringify({
+            '@context': 'https://schema.org/',
+            '@type': 'Product',
+            name: product.name,
+            description: product.short_description?.replace(/<[^>]*>/g, '') || product.name,
+            sku: product.sku || undefined,
+            image: allImages.map(img => img.src).filter(Boolean),
+            brand: { '@type': 'Brand', name: 'Mecville' },
+            offers: {
+              '@type': 'Offer',
+              price: price.toFixed(2),
+              priceCurrency: 'CAD',
+              availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+              url: `${window.location.origin}/product/${product.slug}`,
+              seller: { '@type': 'Organization', name: 'Mecville' },
+            },
+            ...(reviews.length > 0 ? {
+              aggregateRating: {
+                '@type': 'AggregateRating',
+                ratingValue: (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1),
+                reviewCount: reviews.length,
+              },
+            } : {}),
+          })}
+        </script>
+      </Helmet>
       <div className="container">
         <nav className="woocommerce-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Home</Link> / <Link to="/shop">Shop</Link> / <span>{product.name}</span>
@@ -108,6 +134,12 @@ export default function ProductPage() {
 
           <div className="single-product-summary">
             <h1 className="product-title">{product.name}</h1>
+            {reviews.length > 0 && (
+              <div className="product-rating-summary">
+                <span className="rating-stars">{'★'.repeat(Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length))}{'☆'.repeat(5 - Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length))}</span>
+                <span className="rating-count">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
+              </div>
+            )}
             <div className="product-price">
               {isOnSale ? <><del>${regularPrice.toFixed(2)}</del> <ins>${salePrice.toFixed(2)}</ins></> : `$${displayPrice.toFixed(2)}`}
             </div>
@@ -119,31 +151,31 @@ export default function ProductPage() {
               )}
             </div>
             {product.short_description && (
-              <div className="product-excerpt" dangerouslySetInnerHTML={{ __html: product.short_description }} />
+              <div className="product-excerpt" dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.short_description) }} />
             )}
 
             {inStock && (
               <div className="cart">
-                <div className="quantity">
-                  <label htmlFor="product-qty" className="sr-only">Quantity</label>
-                  <input
-                    id="product-qty"
-                    type="number"
-                    className="qty"
-                    value={qty}
-                    min="1"
-                    max={Math.min(99, product.stock)}
-                    onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
-                  />
+                <div className="quantity-stepper">
+                  <button
+                    type="button"
+                    className="stepper-btn"
+                    onClick={() => setQty(Math.max(1, qty - 1))}
+                    disabled={qty <= 1}
+                    aria-label="Decrease quantity"
+                  >&minus;</button>
+                  <span className="stepper-value" aria-live="polite">{qty}</span>
+                  <button
+                    type="button"
+                    className="stepper-btn"
+                    onClick={() => setQty(Math.min(Math.min(99, product.stock), qty + 1))}
+                    disabled={qty >= Math.min(99, product.stock)}
+                    aria-label="Increase quantity"
+                  >+</button>
                 </div>
                 <button onClick={handleAddToCart} className="btn btn-accent single_add_to_cart_button">
                   {added ? 'Added!' : 'Add to Cart'}
                 </button>
-              </div>
-            )}
-            {!user && (
-              <div className="alert alert-info">
-                <Link to="/account">Create an account</Link> to add items to your cart.
               </div>
             )}
 
@@ -163,7 +195,7 @@ export default function ProductPage() {
         </div>
 
         {product.description && (
-          <div className="product-description" dangerouslySetInnerHTML={{ __html: product.description }} />
+          <div className="product-description" dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }} />
         )}
 
         <div className="reviews-section">
@@ -233,6 +265,15 @@ export default function ProductPage() {
           </div>
         )}
       </div>
+
+      {inStock && (
+        <div className="mobile-buy-bar" role="region" aria-label="Quick purchase">
+          <span className="mbb-price">${displayPrice.toFixed(2)}</span>
+          <button onClick={handleAddToCart} className="btn btn-accent mbb-btn">
+            {added ? 'Added!' : 'Add to Cart'}
+          </button>
+        </div>
+      )}
     </main>
   );
 }
