@@ -7,7 +7,7 @@ import {
   getAdminCustomers, getAdminMessages, markMessageRead,
   getAdminReviews, updateReview,
   getAdminCategories, createCategory, updateCategory, deleteCategory,
-  uploadProductImage, importCsv,
+  importCsv,
 } from '../api/backend';
 import { useToast } from '../components/Toast';
 import { uploadProductImage } from '../api/storage';

@@ -20,6 +20,10 @@ export function createApp() {
   app.set('trust proxy', 1);
 
   const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+  // Support a comma-separated list of origins (e.g. Vercel preview URLs).
+  const allowedOrigins = CORS_ORIGIN.split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
 
   app.use(helmet({
     contentSecurityPolicy: {
@@ -36,7 +40,14 @@ export function createApp() {
   }));
 
   app.use(cors({
-    origin: CORS_ORIGIN,
+    origin: (origin, callback) => {
+      // Allow requests with no Origin (server-to-server, curl, webhooks).
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked: ${origin}`));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

@@ -233,7 +233,17 @@ cd back-end
 npm start         # serves on port 3001
 ```
 
-Serve the `front-end/dist/` folder from any static host (nginx, Vercel, Netlify) and point API requests to your backend URL.
+The `front-end/dist/` build is a static SPA — host it on any static host (Vercel, Netlify, etc.) and point API requests to your backend URL via `VITE_API_URL`.
+
+### Production deployment
+
+The project is configured for **frontend on Vercel** and **backend on Render**.
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the full step-by-step guide.
+
+- Frontend (`front-end/`) — Vercel SPA. Set `VITE_API_URL` to the Render
+  backend URL (e.g. `https://mecville-api.onrender.com/api`).
+- Backend (`back-end/`) — Render Web Service. Set `CORS_ORIGIN` to your
+  Vercel URL. `render.yaml` at the repo root defines the service spec.
 
 ## Testing
 
@@ -268,5 +278,6 @@ mecville_webiste-1/
 │       ├── services/           # Stripe, PayPal, Email
 │       ├── middleware/         # Auth, validation, rate limiting
 │       └── __tests__/          # Vitest + supertest specs
-└── DEPLOYMENT.md               # Hostinger deployment guide
+├── render.yaml                 # Render Blueprint (backend web service)
+└── DEPLOYMENT.md               # Vercel (frontend) + Render (backend) guide
 ```

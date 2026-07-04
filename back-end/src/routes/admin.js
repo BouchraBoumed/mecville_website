@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { apiLimiter } from '../middleware/rateLimiter.js';
 import { supabase } from '../config/supabase.js';

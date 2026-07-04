@@ -3,7 +3,7 @@
 
 import { supabase } from '../lib/supabase';
 
-const API = '/api';
+const API = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Get the current session's access token via the Supabase client.
@@ -180,7 +180,7 @@ export async function uploadProductImage(file) {
   const formData = new FormData();
   formData.append('image', file);
 
-  const res = await fetch('/api/admin/upload-image', {
+  const res = await fetch(`${API}/admin/upload-image`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
@@ -203,7 +203,7 @@ export async function importCsv(file) {
   const formData = new FormData();
   formData.append('csv', file);
 
-  const res = await fetch('/api/admin/import-csv', {
+  const res = await fetch(`${API}/admin/import-csv`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,

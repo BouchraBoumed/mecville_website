@@ -1,0 +1,47 @@
+# Render Blueprint for the Mecville Express backend.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Usage:
+#   1. Push this file to your repo.
+#   2. In Render Dashboard → New → Blueprint, select this repo.
+#   3. Render creates the Web Service from this spec.
+#   4. Set the environment variables listed in back-end/.env.example
+#      (SUPABASE_URL, SUPABASE_SECRET_KEY, STRIPE_*, etc.) in the
+#      Render dashboard or via the `envVars` section below.
+#
+# Notes:
+#   - Render injects PORT automatically; the app listens on it.
+#   - CORS_ORIGIN must be set to your Vercel frontend URL
+#     (e.g. https://mecville.vercel.app).
+#   - The health check path is /api/health.
+
+services:
+  - type: web
+    name: mecville-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: back-end
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        sync: false  # set in dashboard to your Vercel URL
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: ENABLE_PAYPAL
+        value: "false"
