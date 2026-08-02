@@ -65,10 +65,10 @@ export async function createPayPalOrder(shippingAddress, billingAddress, items =
   });
 }
 
-export async function capturePayPalOrder(paypalOrderId) {
+export async function capturePayPalOrder(paypalOrderId, orderId) {
   return request('/payments/paypal/capture', {
     method: 'POST',
-    body: JSON.stringify({ paypalOrderId }),
+    body: JSON.stringify({ paypalOrderId, ...(orderId ? { orderId } : {}) }),
   });
 }
 

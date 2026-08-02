@@ -14,7 +14,7 @@ const content = {
       <h2>Data Protection</h2>
       <p>SSL encryption protects your data. We never sell your personal information.</p>
       <h2>Contact</h2>
-      <p>Email: hello@mecville.com</p>
+      <p>Email: info@mecville.com</p>
     `,
   },
   terms: {

@@ -403,7 +403,7 @@ router.post('/paypal/create-order', optionalAuth, paymentLimiter, async (req, re
 // POST /api/payments/paypal/capture
 router.post('/paypal/capture', optionalAuth, async (req, res, next) => {
   try {
-    const { paypalOrderId } = req.body;
+    const { paypalOrderId, orderId } = req.body;
     if (!paypalOrderId) throw new AppError('paypalOrderId is required', 400);
     const userId = req.user?.id || null;
 
@@ -413,8 +413,9 @@ router.post('/paypal/capture', optionalAuth, async (req, res, next) => {
     if (capture.status === 'COMPLETED') {
       const paypalPaymentId = capture.purchase_units?.[0]?.payments?.captures?.[0]?.id;
 
-      // Use service_role client — guests have no user_id to filter on.
-      const { data: order } = await supabase
+      // Match by internal orderId to prevent guest-to-guest cross-matching races.
+      // Fall back to PayPal's custom_id which echoes our internal order id.
+      let orderQuery = supabase
         .from('orders')
         .update({
           payment_status: 'paid',
@@ -422,11 +423,22 @@ router.post('/paypal/capture', optionalAuth, async (req, res, next) => {
           payment_id: paypalPaymentId,
         })
         .eq('payment_method', 'paypal')
-        .is('payment_id', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .select()
-        .single();
+        .is('payment_id', null);
+
+      if (orderId) {
+        orderQuery = orderQuery.eq('id', orderId);
+      } else {
+        // Fallback for older clients: use PayPal-issued custom_id from the capture payload.
+        const customId = capture.purchase_units?.[0]?.custom_id;
+        if (customId) {
+          orderQuery = orderQuery.eq('id', customId);
+        } else {
+          // No deterministic match available — fail safe.
+          throw new AppError('Order reference missing', 400, 'ORDER_MISMATCH');
+        }
+      }
+
+      const { data: order } = await orderQuery.select().single();
 
       if (order) {
         // Stock was already reserved at order creation — no decrement needed here.
@@ -454,7 +466,7 @@ router.post('/paypal/capture', optionalAuth, async (req, res, next) => {
     }
 
     // PayPal payment did not complete — restore reserved stock
-    await restoreStockForPayPalOrder(paypalOrderId, userId);
+    await restoreStockForPayPalOrder(paypalOrderId, orderId, userId);
 
     res.json({ success: false, status: capture.status });
   } catch (err) {
@@ -464,20 +476,26 @@ router.post('/paypal/capture', optionalAuth, async (req, res, next) => {
 
 /**
  * Restore stock for a PayPal order whose capture failed.
+ * Matches by internal orderId (or userId+most-recent for legacy) so one guest's
+ * failed checkout can't restore stock for a different guest's pending order.
  */
-async function restoreStockForPayPalOrder(paypalOrderId, userId) {
-  // Find the order by the pending PayPal order reference
+async function restoreStockForPayPalOrder(paypalOrderId, orderId, userId) {
   let query = supabase
     .from('orders')
     .select('id')
     .eq('payment_method', 'paypal')
-    .eq('payment_status', 'pending')
-    .order('created_at', { ascending: false })
-    .limit(1);
+    .eq('payment_status', 'pending');
 
-  if (userId) {
+  if (orderId) {
+    query = query.eq('id', orderId);
+  } else if (userId) {
     query = query.eq('user_id', userId);
+  } else {
+    // Guest without an orderId — fail safe, let the webhook clean it up.
+    return;
   }
+
+  query = query.order('created_at', { ascending: false }).limit(1);
 
   const { data: order } = await query.maybeSingle();
 

@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import Seo from '../components/Seo';
 import ProductCard from '../components/ProductCard';
+import Reveal from '../components/Reveal';
+import ErrorState from '../components/ErrorState';
 import { getProducts, getCategories } from '../api/data';
 
 const PER_PAGE = 12;
@@ -39,6 +41,7 @@ export default function ShopPage() {
   const [products, setProducts] = useState({ data: [], total: 0 });
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [searchInput, setSearchInput] = useState('');
 
   const category = searchParams.get('category') || '';
@@ -67,10 +70,21 @@ export default function ShopPage() {
   useEffect(() => {
     setSearchInput(search);
     setLoading(true);
+    setError(false);
     const [sortField, sortDir] = sort.split('-');
     getProducts({ page, perPage: PER_PAGE, category, search, sort: sortField, order: sortDir })
       .then(setProducts)
-      .catch(() => setProducts({ data: [], total: 0 }))
+      .catch(() => { setProducts({ data: [], total: 0 }); setError(true); })
+      .finally(() => setLoading(false));
+  }, [category, search, page, sort]);
+
+  const reload = useCallback(() => {
+    setLoading(true);
+    setError(false);
+    const [sortField, sortDir] = sort.split('-');
+    getProducts({ page, perPage: PER_PAGE, category, search, sort: sortField, order: sortDir })
+      .then(setProducts)
+      .catch(() => { setProducts({ data: [], total: 0 }); setError(true); })
       .finally(() => setLoading(false));
   }, [category, search, page, sort]);
 
@@ -316,11 +330,13 @@ export default function ShopPage() {
                   <div key={i} className="skeleton skeleton-card" aria-hidden="true" />
                 ))}
               </div>
+            ) : error ? (
+              <ErrorState title="Couldn't load products" message="We couldn't fetch products right now. Please try again." onRetry={reload} />
             ) : filteredData.length > 0 ? (
               <>
-                <div className="products-grid">
+                <Reveal as="div" className="products-grid" stagger={0.04} y={20}>
                   {filteredData.map(p => <ProductCard key={p.id} product={p} />)}
-                </div>
+                </Reveal>
 
                 {totalPages > 1 && (
                   <nav className="pagination" aria-label="Product pagination">
@@ -359,7 +375,12 @@ export default function ShopPage() {
                 )}
               </>
             ) : (
-              <p className="no-results">No products found{search ? ` for "${search}"` : ''}{hasActiveFilters ? ' with current filters' : ''}.</p>
+              <ErrorState
+                title="No products found"
+                message={search ? `No products matched "${search}"${hasActiveFilters ? ' with the current filters' : ''}. Try adjusting your search or filters.` : 'No products match the current filters. Try clearing them.'}
+                actionTo="/shop"
+                actionLabel="Reset filters"
+              />
             )}
           </div>
         </div>

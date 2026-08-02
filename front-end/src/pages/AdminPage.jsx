@@ -46,6 +46,9 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvResult, setCsvResult] = useState(null);
 
   useEffect(() => {
     if (!isAdmin) return;

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Seo from '../components/Seo';
 import { useToast } from '../components/Toast';
 import { getProductBySlug, getProducts, addToCart, getReviews, createReview } from '../api/data';
 import { useAuth } from '../contexts/AuthContext';
 import ProductCard from '../components/ProductCard';
+import ErrorState from '../components/ErrorState';
 import { sanitizeHtml } from '../lib/sanitize';
 import { Helmet } from 'react-helmet-async';
 
@@ -14,14 +15,16 @@ export default function ProductPage() {
   const { addToast } = useToast();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [related, setRelated] = useState([]);
   const [activeImg, setActiveImg] = useState(0);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     setLoading(true);
+    setError(false);
     setActiveImg(0);
     getProductBySlug(slug)
       .then(p => {
@@ -36,8 +39,10 @@ export default function ProductPage() {
         }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => { setError(true); setLoading(false); });
   }, [slug]);
+
+  useEffect(() => { load(); }, [load]);
 
   async function handleAddToCart() {
     try {
@@ -53,8 +58,32 @@ export default function ProductPage() {
   const allImages = product?.images || [];
   const mainImg = allImages[activeImg]?.src || '';
 
-  if (loading) return <main className="content-area"><div className="container"><p className="loading">Loading...</p></div></main>;
-  if (!product) return <main className="content-area"><div className="container"><p className="no-results">Product not found.</p></div></main>;
+  if (loading) return (
+    <main className="content-area">
+      <div className="container">
+        <div className="skeleton-page" aria-hidden="true">
+          <div className="skeleton-row short" />
+          <div className="skeleton" style={{ height: 400, borderRadius: 'var(--radius-md)', marginBottom: 24 }} />
+          <div className="skeleton-row" />
+          <div className="skeleton-row short" />
+        </div>
+      </div>
+    </main>
+  );
+  if (error) return (
+    <main className="content-area">
+      <div className="container">
+        <ErrorState title="Couldn't load the product" message="We couldn't fetch this product right now. Please try again." onRetry={load} actionTo="/shop" actionLabel="Back to Shop" />
+      </div>
+    </main>
+  );
+  if (!product) return (
+    <main className="content-area">
+      <div className="container">
+        <ErrorState title="Product not found" message="This product may have been removed or the link is broken." actionTo="/shop" actionLabel="Browse Shop" />
+      </div>
+    </main>
+  );
 
   const price = Number(product.price) || 0;
   const regularPrice = product.compare_price ? Number(product.compare_price) : null;

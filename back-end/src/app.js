@@ -8,6 +8,7 @@ import paymentsRouter from './routes/payments.js';
 import webhooksRouter from './routes/webhooks.js';
 import contactRouter from './routes/contact.js';
 import adminRouter from './routes/admin.js';
+import newsletterRouter from './routes/newsletter.js';
 
 dotenv.config();
 
@@ -73,6 +74,7 @@ export function createApp() {
   app.use('/api/webhooks', webhooksRouter);
   app.use('/api/contact', contactRouter);
   app.use('/api/admin', adminRouter);
+  app.use('/api/newsletter', newsletterRouter);
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

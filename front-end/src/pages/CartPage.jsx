@@ -36,7 +36,16 @@ export default function CartPage() {
     }
   }
 
-  if (loading) return <main className="content-area"><div className="container"><p className="loading">Loading cart...</p></div></main>;
+  if (loading) return (
+    <main className="content-area">
+      <div className="container">
+        <div className="skeleton-page" aria-hidden="true">
+          <div className="skeleton" style={{ height: 120, borderRadius: 'var(--radius-md)', marginBottom: 24 }} />
+          <div className="skeleton" style={{ height: 60, borderRadius: 'var(--radius-sm)' }} />
+        </div>
+      </div>
+    </main>
+  );
 
   const isEmpty = !cart || !cart.items || cart.items.length === 0;
   const subtotal = !isEmpty ? cart.items.reduce((s, i) => s + i.price * i.quantity, 0) : 0;

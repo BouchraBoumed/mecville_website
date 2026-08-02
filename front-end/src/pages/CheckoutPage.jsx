@@ -126,9 +126,10 @@ export default function CheckoutPage() {
     setError('');
     const address = buildAddress();
     const guestItems = !user ? cart.items.map(i => ({ product_id: i.product_id, quantity: i.quantity })) : null;
-    const { paypalOrderId, approvalUrl } = await createPayPalOrder(address, address, guestItems);
+    const { paypalOrderId, approvalUrl, orderId } = await createPayPalOrder(address, address, guestItems);
     if (approvalUrl) {
       sessionStorage.setItem('paypal_order_id', paypalOrderId);
+      sessionStorage.setItem('paypal_db_order_id', orderId ?? '');
       sessionStorage.setItem('paypal_shipping_address', JSON.stringify(address));
       if (!user) sessionStorage.setItem('paypal_guest_items', JSON.stringify(guestItems));
       window.location.href = approvalUrl;
@@ -139,11 +140,11 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     const paypalOrderId = sessionStorage.getItem('paypal_order_id');
+    const orderId = sessionStorage.getItem('paypal_db_order_id');
     if (paypalOrderId && window.location.pathname === '/order/confirm') {
-      capturePayPalOrder(paypalOrderId)
+      capturePayPalOrder(paypalOrderId, orderId || null)
         .then(result => {
           if (result.success) {
-            // Clear the guest cart on PayPal success.
             localStorage.removeItem('mecville_cart');
             sessionStorage.removeItem('paypal_guest_items');
             setOrderNumber(result.order?.order_number || '');
@@ -151,7 +152,10 @@ export default function CheckoutPage() {
           }
         })
         .catch(err => setError(err.message))
-        .finally(() => sessionStorage.removeItem('paypal_order_id'));
+        .finally(() => {
+          sessionStorage.removeItem('paypal_order_id');
+          sessionStorage.removeItem('paypal_db_order_id');
+        });
     }
   }, []);
 
@@ -188,7 +192,15 @@ export default function CheckoutPage() {
     );
   }
 
-  if (loading) return <main className="content-area"><div className="container"><p className="loading">Loading...</p></div></main>;
+  if (loading) return (
+    <main className="content-area">
+      <div className="container">
+        <div className="skeleton-page" aria-hidden="true">
+          <div className="skeleton" style={{ height: 400, borderRadius: 'var(--radius-md)' }} />
+        </div>
+      </div>
+    </main>
+  );
 
   const isEmpty = !cart || !cart.items || cart.items.length === 0;
   if (isEmpty) {

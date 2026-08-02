@@ -88,4 +88,7 @@ export const schemas = {
     postcode: { required: true, maxLength: 20 },
     country: { required: true, maxLength: 2, minLength: 2 },
   },
+  newsletter: {
+    email: { required: true, type: 'email' },
+  },
 };

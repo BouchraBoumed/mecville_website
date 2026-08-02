@@ -28,6 +28,31 @@ export default function Seo({ title, description, image, url }) {
       <meta name="twitter:description" content={pageDescription} />
       <meta name="twitter:image" content={pageImage} />
       <link rel="canonical" href={pageUrl} />
+      <script type="application/ld+json">
+        {JSON.stringify({
+          '@context': 'https://schema.org/',
+          '@type': 'Organization',
+          name: 'Mecville',
+          url: 'https://mecville.com',
+          email: 'info@mecville.com',
+          telephone: '+14387649101',
+          image: 'https://mecville.com/wp-content/uploads/2025/12/MECVILLE-Logo-Design.png',
+          sameAs: [
+            'https://facebook.com',
+            'https://instagram.com',
+            'https://tiktok.com',
+            'https://wa.me/+14387649101',
+          ],
+        })}
+      </script>
+      <script type="application/ld+json">
+        {JSON.stringify({
+          '@context': 'https://schema.org/',
+          '@type': 'WebSite',
+          name: 'Mecville',
+          url: 'https://mecville.com',
+        })}
+      </script>
     </Helmet>
   );
 }

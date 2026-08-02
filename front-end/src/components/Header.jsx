@@ -71,23 +71,26 @@ export default function Header() {
         </div>
 
         <div className="header-actions">
-          <button className="menu-toggle" aria-label="Toggle menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+          <button className="menu-toggle" aria-label="Toggle menu" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen(!menuOpen)}>
             <span></span><span></span><span></span>
           </button>
-          <nav className={`main-navigation ${menuOpen ? 'toggled' : ''}`}>
+          <nav className={`main-navigation ${menuOpen ? 'toggled' : ''}`} id="primary-navigation" aria-label="Main navigation">
             <ul>
               <li><Link to="/">Home</Link></li>
               <li className="menu-item-has-children">
                 <Link to="/shop">Shop</Link>
                 <ul className="sub-menu">
                   <li><Link to="/shop">All Products</Link></li>
-                  <li><Link to="/shop?category=sealed">Sealed</Link></li>
-                  <li><Link to="/shop?category=singles">Singles</Link></li>
-                  <li><Link to="/shop?category=graded">Graded</Link></li>
-                  <li><Link to="/shop?category=bundles">Bundles</Link></li>
+                  <li><Link to="/new-arrivals">New Arrivals</Link></li>
+                  <li><Link to="/featured-collections">Featured Collections</Link></li>
+                  <li><Link to="/shop?category=japanese-pokemon">Japanese Pokémon</Link></li>
+                  <li><Link to="/shop?category=english-pokemon">English Pokémon</Link></li>
+                  <li><Link to="/shop?category=graded-cards">Graded Cards</Link></li>
+                  <li><Link to="/shop?category=accessories">Accessories</Link></li>
                 </ul>
               </li>
-              <li><Link to="/gallery">Gallery</Link></li>
+              <li><Link to="/blog">Blog</Link></li>
+              <li><Link to="/terms">Terms</Link></li>
               <li><Link to="/contact">Contact</Link></li>
             </ul>
           </nav>

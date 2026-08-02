@@ -1,22 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import Seo from '../components/Seo';
+import ErrorState from '../components/ErrorState';
 import { getProducts } from '../api/data';
 
 export default function GalleryPage() {
   const [galleryItems, setGalleryItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    // Curated wall: newest arrivals with images (sorted by created_at desc by default).
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(false);
     getProducts({ page: 1, perPage: 50 })
       .then(({ data }) => {
         const withImages = (data || []).filter(p => p.images && p.images.length > 0);
         setGalleryItems(withImages.slice(0, 12));
       })
-      .catch(() => {})
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   return (
     <main className="content-area">
@@ -28,7 +33,11 @@ export default function GalleryPage() {
         </section>
 
         {loading ? (
-          <div className="loading">Loading...</div>
+          <div className="gallery-grid">
+            {[...Array(8)].map((_, i) => <div key={i} className="skeleton" style={{ height: 320, borderRadius: 'var(--radius-md)' }} aria-hidden="true" />)}
+          </div>
+        ) : error ? (
+          <ErrorState title="Couldn't load new arrivals" message="We couldn't fetch the latest arrivals right now. Please try again." onRetry={load} />
         ) : galleryItems.length > 0 ? (
           <div className="gallery-grid">
             {galleryItems.map(item => {
@@ -51,10 +60,7 @@ export default function GalleryPage() {
             })}
           </div>
         ) : (
-          <div style={{ textAlign: 'center', padding: 60 }}>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: 18, marginBottom: 24 }}>New arrivals will appear here once products with images are added.</p>
-            <Link to="/shop" className="btn btn-accent">Browse Shop</Link>
-          </div>
+          <ErrorState title="No new arrivals yet" message="New arrivals will appear here once products with images are added. Browse the full shop in the meantime." actionTo="/shop" />
         )}
       </div>
     </main>

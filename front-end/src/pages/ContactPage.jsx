@@ -58,10 +58,16 @@ export default function ContactPage() {
           <div className="contact-card">
             <h2>Get in touch</h2>
             <p>We're here to help with orders, product questions, and general store support.</p>
-            <p><strong>Email</strong><br /><a href="mailto:support@mecville.com">support@mecville.com</a></p>
-            <p><strong>Phone</strong><br /><a href="tel:+15141234567">(514) 123-4567</a></p>
+            <p><strong>Email</strong><br /><a href="mailto:info@mecville.com">info@mecville.com</a></p>
+            <p><strong>Phone</strong><br /><a href="tel:+14387649101">(+1) 438-764-9101</a></p>
             <p><strong>Location</strong><br />Montreal, Quebec, Canada</p>
             <p><strong>Store Hours</strong><br />Mon–Fri: 10AM–6PM EST<br />Sat: 11AM–4PM EST<br />Sun: Closed</p>
+            <p><strong>Socials</strong><br />
+              <a href="https://facebook.com" target="_blank" rel="noreferrer">Facebook</a> ·
+              <a href="https://instagram.com" target="_blank" rel="noreferrer">Instagram</a> ·
+              <a href="https://tiktok.com" target="_blank" rel="noreferrer">TikTok</a> ·
+              <a href="https://wa.me/+14387649101" target="_blank" rel="noreferrer">WhatsApp</a>
+            </p>
           </div>
           <div className="contact-form">
             <h2>Send a message</h2>

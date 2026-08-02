@@ -112,7 +112,16 @@ export default function AccountPage() {
   }
 
   if (authLoading) {
-    return <main className="content-area"><div className="container"><p className="loading">Loading...</p></div></main>;
+    return (
+      <main className="content-area">
+        <div className="container">
+          <div className="skeleton-page" aria-hidden="true">
+            <div className="skeleton" style={{ height: 60, width: 200, borderRadius: 'var(--radius-sm)', marginBottom: 24 }} />
+            <div className="skeleton" style={{ height: 320, borderRadius: 'var(--radius-md)' }} />
+          </div>
+        </div>
+      </main>
+    );
   }
 
   if (!user) {
@@ -219,13 +228,13 @@ export default function AccountPage() {
           <nav className="woocommerce-MyAccount-navigation" aria-label="Account sections">
             <ul>
               <li className={accountTab === 'dashboard' ? 'is-active' : ''}>
-                <button onClick={() => setAccountTab('dashboard')}>Dashboard</button>
+                <button onClick={() => setAccountTab('dashboard')} aria-current={accountTab === 'dashboard' ? 'page' : undefined}>Dashboard</button>
               </li>
               <li className={accountTab === 'orders' ? 'is-active' : ''}>
-                <button onClick={() => setAccountTab('orders')}>Orders</button>
+                <button onClick={() => setAccountTab('orders')} aria-current={accountTab === 'orders' ? 'page' : undefined}>Orders</button>
               </li>
               <li className={accountTab === 'details' ? 'is-active' : ''}>
-                <button onClick={() => setAccountTab('details')}>Account Details</button>
+                <button onClick={() => setAccountTab('details')} aria-current={accountTab === 'details' ? 'page' : undefined}>Account Details</button>
               </li>
               {isAdmin && <li><Link to="/admin" style={{ display: 'block', padding: '14px 20px', color: 'var(--color-accent)' }}>Admin</Link></li>}
               <li><button onClick={signOut} style={{ color: 'var(--color-danger)' }}>Log Out</button></li>

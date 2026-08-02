@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
