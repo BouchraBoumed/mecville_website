@@ -41,7 +41,7 @@ export default function BlogPage() {
           {POSTS.map(post => (
             <article className="product-card" key={post.slug}>
               <Link to={`/blog/${post.slug}`} className="product-card-link" style={{ padding: 0 }}>
-                <div className="product-thumbnail-wrap" style={{ aspectRatio: '16/9', background: 'linear-gradient(135deg, #16243d 0%, #0f1c33 100%)' }}>
+                <div className="product-thumbnail-wrap" style={{ aspectRatio: '16/9', background: 'var(--gradient-signature)' }}>
                   <span style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>Mecville Blog</span>
                 </div>
                 <div className="product-info">

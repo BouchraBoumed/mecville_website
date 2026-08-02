@@ -14,7 +14,7 @@ const cardStyle = {
       fontSmoothing: 'antialiased',
       fontSize: '15px',
       '::placeholder': { color: '#6b7280' },
-      iconColor: '#d4a84b',
+      iconColor: '#FFCB05',
     },
     invalid: { color: '#ef4444', iconColor: '#ef4444' },
   },
